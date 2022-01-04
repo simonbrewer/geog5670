@@ -1,0 +1,739 @@
+---
+title: 'GEOG 5670/6670 Lab 03: QGIS Spatial Analysis'
+author: | 
+  | Simon Brewer
+  | Geography Department
+  | University of Utah
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    fig_caption: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(png)
+library(grid)
+```
+
+## Introduction
+
+In this lab, we'll start by demonstrating how to set up forms to enter data for any given layer, then go on to run some simple spatial analyses (vector and raster) using QGIS. As before, the examples in this lab are modified from the [QGIS training manual][tmID], and further details and examples can be found in that document. 
+
+## Dataset
+
+We will use the same dataset as the previous lab, so open this by either opening QGIS and selecting the project from the list of recent project or find the project file (*lab2.qgz*) and double-click it. 
+
+## Forms
+
+When you add new data via digitizing, you're presented with a default dialog box that lets you fill in the attributes for that feature. However, this dialog may not be be very user friendly, particularly if you have large datasets to create, or if you want other people to help you digitize. You can instead create your own form for data entry, and customize it. Here, we'll design a form for the `roads` layer
+
+- Select the `roads` layer in the 'Layers' panel.
+- Enter 'Edit Mode' as before (the pen icon)
+- Open its Attribute Table.
+- Right-click on any cell in the table. A short menu will appear, with the only entry being Open form.
+- Click on it to see the form that QGIS generates for this layer.
+
+Obviously it would be nice to be able to do this while looking at the map, rather than needing to search for a specific street in the Attribute Table all the time.
+
+- Select the `roads` layer in the 'Layers' panel.
+- Using the 'Identify' tool ([View] > [Identify Features]), click on any street in the map.
+- This opens the 'Identify Results' panel opens and shows in a tree view the fields values and other general information about the clicked feature.
+- Check the Auto open form check box at the bottom of the panel
+- Now, click again on any street in the map. Along the previous 'Identify Results' dialog, you’ll see the now-familiar form (you may need to increase the size of the window to see all the fields)
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/forms1.png")
+grid.raster(img)
+```
+
+Each time you click on a single feature with the Identify tool, its form pops-up unless the Auto open form is unchecked.
+
+If you are in edit mode, you can use this form to edit a feature’s attributes. Using the 'Identify' tool, click on the main street running through Swellendam:
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/forms2.png")
+grid.raster(img)
+```
+
+Edit its highway value to be secondary. Exit edit mode and save the layer. Open the Attribute Table (or click on the segment again) and note that the value has been updated in the attributes table and therefore in the source data.
+
+#### Form widgets 
+
+QGIS forms have a set of widgets to make editing a little easier, by helping to constrain and guide choices. 
+
+Open the roads layer’s Layer Properties and find the button for the 'Attributes Form'
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/attribute_form.png")
+grid.raster(img)
+```
+
+In the list of available fields, click on 'oneway'. We'll make this a simple true/false choice, so under 'Widget Type' on the main panel, select 'Checkbox' from the drop down menu. Set 'Representation for checked state' to 1 and unchecked to 0 (this will be the numerical value held in the field). 
+
+We can also provide a list of possible values. Click on 'surface' from the available fields. Set the widget type for this field to 'Unique values'. The form will now contain a drop down menu of all previously entered values. If you check 'Editable', this will instead allow users to add new values. 
+
+Click 'OK' to close this window and keep the changes. Now:
+
+- Enter edit mode (if the roads layer is not already in edit mode.
+- Click on the Identify tool.
+- Click on the same main road you chose earlier.
+- You’ll now see that 
+    - The 'oneway' attribute has a check box next to it denoting True (checked) or False (unchecked)
+    - The 'surface' attribute has a drop down menu with the various available types
+
+More complex forms can be built using the QuickTime Qt5-designer, but this needs to be installed as a separate application. 
+
+## Actions
+
+In QGIS, an *action* is something that happens when you click on a feature, such as opening the attribute table or a form. This can add a lot of extra functionality to your map, allowing you to retrieve additional information about an object, for example. 
+
+Here, we will associate photographs with the `school_property` layer you created in the previous lab. Then we'll create an action that will open the image for a property when clicking on the property. In the zipfile for that lab, there is a folder titled 'school_property_photos'. Check to make sure you know where this is on your computer before proceeding.  
+
+### File attachments
+
+First we’ll create a field in the layer's attribute table to associate with the photos:
+
+- Select the `school_property` layer
+- Open the Layer Properties dialog
+- Click on the 'Source Fields' tab
+- Toggle editing mode on
+- Click on the button to add a 'New Field' at the top 
+- In the new dialog box that opens, set 
+    - 'Name' to 'image'
+    - 'Type' to 'text'
+    - 'Length' to '255'
+- Toggle editing off and save the layer
+
+Now go to the 'Form' section and you should see 'image' appear in the available fields (you may need to close and reopen the Properties to refresh this).
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/attribute_form.png")
+grid.raster(img)
+```
+
+- Select 'image' from the 'Available Fields'
+- Set 'Widget Type' to 'Attachment'
+- In the options set the 'Default path' to the folder with the photos
+- Click 'OK'
+    
+Now make sure you are still in edit mode and use the 'Identify' tool to click on one of the three features in the `school_property` layer. In the dialog that opens, click on the browse button (the '...' next to the image field). Select the correct image (or browse to the folder if it is not immediately available). Repeat this for the other two features. 
+
+### Creating an action
+
+Reopen the `school_property` layer 'Properties' menu, and go to the 'Actions' menu (the cogs).
+
+- Click the green '+' to add a new action
+- From the 'Type' menu, select 'Open'
+- Add a description for the action ('Show Image')
+- Select 'image' from the drop down menu listing the different attributes, and click 'Insert'
+- Click 'OK' and close the 'Properties' menu
+
+Now on the main toolbar, find the 'Run feature' action button (next to the 'Identify' button). Click on the down arrow to list all available actions (there will only be one). Select 'Show Image'. Now click on any of the `school_property` polygons, and you should see the associated image file open. 
+
+### Searching the internet
+
+If, while browsing the map, we want to find out more about a given feature, we might want to use Google to find out more. We can set an action in QGIS to do this for us. We'll use the `landuse` layer, and the attribute 'name' in the search. 
+
+Select the `landuse` layer and open the Layer properties. Go to the 'Actions' menu and add a new action. Set:
+
+- 'Type' to 'Open'
+- 'Description' to 'Search Google'
+- In the 'Action Text' window enter the standard Google search string "https://www.google.com/search?q="
+- Select 'name' from the drop down menu and click 'Insert'
+- Click 'OK' and close the menu
+
+Now, making sure that the `landuse` layer is selected, start the action from the 'Run' button. Find one of the landuse areas and click on it to bring up an automatic Google search. 
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/search.png")
+grid.raster(img)
+```
+
+If your action doesn’t work, check that everything was entered correctly; typos are common with this kind of work.
+
+### Open a Webpage Directly in QGIS
+
+In the previous section, we demonstrated how to open a webpage in an external browser. There are some shortcomings with this approach in that it adds an unknowable dependency – will the end-user have the software required to execute the action on their system? 
+
+However, QGIS3 sits on top of the incredibly powerful and versatile Qt5 library. QGIS actions can therefore be set as arbitrary, tokenized (i.e. using variable information based on the contents of a field attribute) Python commands. We'll use Python in this section to show a web page for a feature. This follows the same general idea as opening a site in an external browser, but uses the Qt4 QWebView class (which is a webkit based html widget) to display the content in a pop up window.
+
+Instead of Google, let’s use Wikipedia this time. So the URL you request will look like this:
+
+https://wikipedia.org/wiki/SEARCH_PHRASE
+
+To create the layer action:
+
+- Open the Layer Properties dialog and head over to the Actions tab.
+- Set up a new action using the following properties for the action:
+    - Type: Python
+    - Name: Wikipedia
+- In the Action window, enter the following:
+
+```
+from PyQt5.QtCore import QUrl
+from PyQt5.QtWebKitWidgets import QWebView
+myWV = QWebView(None)
+myWV.load(QUrl('https://wikipedia.org/wiki/[% "name" %]'))
+myWV.show()
+```
+
+There are a couple of things going on here:
+
+- All the python code is on separate lines
+- The two main Python functions are 
+    - `QUrl` which fetches a webpage
+    - `QWebView` which displays it
+- `[% "name" %]` will be replaced by the actual attribute value when the action is invoked (as before).
+- The code simply creates a new `QWebView` instance, sets its URL, and then calls `show()` on it to make it visible as a window on the user’s desktop.
+
+Click 'OK' to save the action, return to the main QGIS webpage and run this action, then click on any of the landuse polygons (not all of them will have a Wikipedia page)
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/wikipedia.png")
+grid.raster(img)
+```
+
+## Projections and transformations
+
+The projection of the current layer will be displayed in the bottom part of the screen on a button that looks like this:
+
+```{r fig.width=1.5, fig.height=1., echo=FALSE}
+img <- readPNG("images/projection.png")
+grid.raster(img)
+```
+
+However this is currently not set. Click on the projection button, to bring up the list of potential projections:
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/projection_menu.png")
+grid.raster(img)
+```
+
+We'll set the current layers to be an unprojected system on a WGS 84 ellipsoid (EPSG:4326). Using the 'Filter' search box, search for '4326' and click on this coordinate reference system when it appears. As the original layers were unprojected, you won't see any change to the map display, but the projection button will now display the current projection as an EPSG code. 
+
+Next, go to the Canvas page and download the zipfile *world.zip*. Move this to you working directory and unzip it. Go to the Data Source Manager or Browser and load the file *continents.shp* from this zip file into your project. This contains a basic outline of the world, including countries and large regions (states, etc) in the same CRS (WGS 84; EPSG 4326). Zoom out to capture a larger region of South Africa. For example, here is part of the region at a scale of 1:5,000,000 (note that you can set the scale directly in this window). 
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/rsa1.png")
+grid.raster(img)
+```
+
+Now let's reproject this map. Click on the projection button, to bring up the list of potential projections:
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/projection_menu.png")
+grid.raster(img)
+```
+
+The UTM zone for South Africa is `34S`. There are a couple of ways to find the matching projection. First, we can search using the 'Filter' box for `UTM 34S` to bring up all projections matching that text string. Alternatively, as we know this is in the list of UTM projections, you can scroll through the list of projection coordinate systems in the box 'Coordinate Reference System'. 
+
+As there are still a lot to work through, an easier way may be to search the EPSG codes [here][epsgID], which for gives a code of 32734 for UTM 35S with a WGS 84 ellipsoid. Use the number in the filter box should bring up a single projection, so click on this to reproject the map. 
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/rsa2.png")
+grid.raster(img)
+```
+
+Now search for a different projection (`NSIDC EASE-Grid 2.0 Global`), and reproject the layer to this. You probably won't see much difference in the map, but note that the EPSG code updates in the projection window. 
+
+### "On-the-fly" reprojection
+
+'On the fly' reprojection is used for combining datasets that are have different CRSs. Go back to the browser and add the layer *RSA.shp* to this map. If you hover the mouse over the `RSA` layer in the Layer panel, it will show you the CRS (EPSG:3410). Note that this is different to the current projection (EPSG:6933), but the map is automatically updated to the projection you selected. 'On the fly' reprojection is related to the project and not to any individual single layer. 
+
+Layers can be exported into a different CRS as follows:
+
+- Right-click on the `buildings` layer in the Layers panel
+- Select [Export] > [Save Features As...] in the menu that appears. 
+- In the next menu
+    - Click on the 'Browse' button, go to your working directory and name the new file *buildings_reprojected.shp*
+    - Change the value of the CRS. Only the recent CRSs used will be shown in the drop down menu, but clicking on the projection button next to this will give you access to the full set of CRSs. 
+    - In the 'Filter' field search for 34S
+    - Select WGS 84 / UTM zone 34S from the list
+    - Click 'OK'
+
+You can now compare the old and new projections of the layer and see that they are in two different CRS but they still overlap. Note however, that this only extends to the display. **Operations on the layers will be carried out in their default CRS**.
+
+## Vector analysis
+
+We'll now walk through the steps of a fairly standard GIS query using QGIS. The example is one of a real estate agent looking for a residential property in Swellendam for clients who have the following criteria:
+
+- It needs to be in Swellendam
+- It must be within reasonable driving distance of a school (say 1km)
+- It must be more than 100m squared in size
+- Closer than 50m to a main road
+- Closer than 500m to a restaurant
+
+To answer these questions, we’re going to need the following data:
+
+- The residential properties (buildings) in the area
+- The roads in and around the town
+- The location of schools and restaurants
+- The size of buildings
+
+Before starting the project, we need to change one of QGIS's default setting. We'll be using several tools for feature selection. The default behavior is to name the new layers that are created after the tool, so the 'Buffer' tool will create a layer labeled `Buffered` in the Layer panel. We'll change this so that this uses the correct filename. Go to the main [QGIS] menu, then select [Preferences...]. In the new dialog box choose 'Processing' from the left-hand menu and then click on the 'General' heading on the right. Find the option 'Use filename as layer name' and make sure the check box is ticked. Click [OK]. You may get a warning about the GRASS7 folder not existing. You can ignore this for now. 
+
+### Project setup
+
+We'll start a new project for this analysis, so begin by going to [Project] > [New] (be sure to save your previous work). 
+
+- Add a background map by selecting the 'XYZ Tiles' in the browser window and clicking on 'OpenStreetMap'
+- Load the necessary layers from the *training_data.gpkg* Geopackage database (this should still be connected under 'GeoPackages' in the browser)
+    - `landuse`
+    - `roads`
+    - `restaurants`
+    - `schools`
+- Download the file *buildings2.zip* from Canvas, and unzip it in your working directory. This contains a topologically corrected version of the buildings layer that we will use here. Load the shapefile *buildings2.shp*
+- Zoom to the layer extent to see Swellendam, South Africa and rearrange the layers as necessary
+
+Some of the roads in OSM dataset are listed as unclassified, tracks, path and footway, and some may be listed as NULL values (i.e. not specified). We want to exclude these from our dataset and focus on the other road types, more suitable for this exercise.
+
+- Right click on the roads layer and choose 'Filter...'
+- In the dialog that pops up we can filter these features with the following expression:
+
+```
+"highway" NOT IN ('footway','path','unclassified','track') OR "highway" != NULL
+```
+
+The map should update, removing the unwanted road segments. A 'Filter' indicator will appear next to th layer to remind you that it is currently filtered. The map with all the data should look like the following one:
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/vector_analysis2.png")
+grid.raster(img)
+```
+
+### Reprojecting the layers
+
+As we need to measure Cartesian distances, we need to project the layers into something more suitable than a Lon/Lat projection. We'll use the UTM zone for South Africa (34S). As noted above, we can change the projection of the visual display relatively easily. However, to convert the underlying data we need to export each layer with a new CRS. We can do this by converting each to a new shapefile or appending these to the existing GeoPackage. To keep things clean, we'll create a new GeoPackage that will contain only the reprojected layers. 
+
+- Right click the `roads` layer in the Layers panel
+- Click [Export] > [Save Features As...]
+- In the 'Save Vector Layer As' dialog choose GeoPackage as Format;
+- Click on `...` next to  'File name' and name the new GeoPackage `vector_analysis`
+- Change the Layer name to `roads_34S`
+- Change the CRS parameter to WGS 84 / UTM zone 34S;
+- Click 'OK'
+
+Now repeat this for for each layer (including `buildings2`), each time creating a new layer in the *vector_analysis.gpkg* GeoPackage file with `_34S` appended to the original name. Make sure to remove the old layers from the project to keep things manageable. Now select any layer, right-click and click on 'Zoom to layer'.
+
+### Distances to features
+
+Next, we'll create a buffer for the `roads_34S` to find all buildings that correspond to the required condition (<50m to road). 
+
+- Uncheck all layers except `roads_34S` and `buildings2_34S` to simplify the map while you’re working
+- Go to [Processing] > [Toolbox] to access the set of algorithms (for vector and raster) analysis 
+- Find the 'Buffer' algorithm is under the 'Vector Geometry' list (or by searching for Buffer in the upper part of the toolbox). Double click on it to open the 'Buffer' dialog
+    - Select `roads_34S` for the input layer
+    - Set the 'Distance' to 50.00 meters
+    - Check 'Dissolve result' (if unchecked this will create an individual buffer for each line segment)
+    
+By default, the buffers will be created in a temporary scratch layer. We can instead save the result back to the GeoPackage. Under the field 'Buffered', click on the button '...' and choose 'Save to GeoPackage'. Click 'Save' and call the layer `roads_buffer_50m`. Click 'OK' then 'Run' in the main 'Buffer' dialog box. As long as you checked the box 'Open output file after running algorithm', the new layer should appear in the main map display. 
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/roads_buffer.png")
+grid.raster(img)
+```
+
+Note: The Short Help on the right side of the dialog explains how the algorithm works. If you need more information, just click on the Help button in the bottom part to open a more detailed guide of the algorithm.
+
+We can now use this buffer to extract all houses within 50m of a road (we'll add the other conditions later). Go to the 'Processing toolbox', and under [Vector selection] find the tool called 'Extract by location'. In this window, set the first option ('Extract features from') to `buildings_34S` and the 'By comparing to the features from' to your new layers of road buffers (`roads_buffer_50m`). As this is just an example, leave the output value ('Extracted (location)') as a temporary scratch file. Click 'Run'. 
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/roads_buffer.png")
+grid.raster(img)
+```
+
+Now create a buffer for your schools. This needs to 1 km in radius. Save the new layer in the *vector_analysis.gpkg* file as `schools_buffer_1km`.
+
+### Overlapping areas
+
+Now we have areas where the road is 50 meters away and there’s a school within 1 km (direct line, not by road). But we only want the areas where both of these criteria are satisfied. To do that, we’ll need to use the 'Intersection' tool, which is in the 'Vector Overlay' group in the Processing Toolbox. Click to start this tool, then set the following parameters
+
+- The input layers are the two buffers
+- Save the results to the *vector_analysis.gpkg* GeoPackage
+- Name the layer `road_school_buffers_intersect`
+
+Now, we'll extract the houses that fall in this combined buffer using the 'Extract by location' tool. Before running this, remove the previous 'Extracted' temporary layer by right-clicking on it and selecting 'Remove layer'. Now open the 'Extract...' tool, select the buildings and the combined buffer. Save the output to the same GeoPackage, naming this `well_located_houses`. 
+
+This figure shows the result of this operation, with the school buffer in green, the road buffer in orange and the combined buffer in purple. The selected houses are red and the rejected buildings blue. 
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/extract2.png")
+grid.raster(img)
+```
+
+We'll now modify this selection by using the third criterion; that the building must be within 500m of a restaurant. Use the examples above to create a suitable buffer, then use the extract tools to further filter the layer `well_located_houses` using this buffer. Call the new layer `houses_restaurants_500m` and save it to the GeoPackage. 
+
+### Refining the selection by value
+
+The final criterion we have is that the buildings should be at least 100 m2. If you open the attribute table for this new layer (`houses_restaurants_500m` or in fact any of the building derived layers) you see that there is currently no estimate of the building footprint. Make sure that the new building layer is selected in the Layer panel, open 'Field calculator' (the Abacus icon) to get the following dialog:
+
+Here, make sure that 'Create a new field' is checked and set:
+
+- 'Output field name' to 'AREA'
+- 'Output field type' to 'Decimal number (real)'
+
+In the 'Expression' window, type `$area` (or you can select this from the 'Geometry' drop down in the middle panel). While here, you might also want to scroll through some of the other options that can be used to calculate new values. Click 'OK' to run the calculator and add the new field. Reopen the attribute table for the `houses_restaurants_500m` and scroll to the bottom to see the new field. 
+
+Finally, we'll filter the buildings from the previous selection by size. Go to 'Vector selection' > 'Extract by attribute' in the Processing toolbox. Select `houses_restaurants_500m` as the Input layer, `AREA` as the attribute `>=` as the operator and `100` as the value. Save the output as ``
+
+Click 'OK' to see the final selection. Try toggling the different building layers on and off to make sure that the selection has worked has expected. 
+
+## Working with raster data
+
+In this next section, we'll walk through basic raster data functions. While this uses data from the same study area as the previous analysis, it may be easier to close your existing project and start a new one for this section. 
+
+### Loading Raster Data
+
+Raster data can be loaded with the same methods we used for vector data:
+
+- From the Data Source Manager
+- From the Browser
+- From [Layer] > [Add Layer] > [Add Raster Layer...]
+
+Using one of these methods, load the following four images from the *lab2/raster* folder
+
+- *3320C_2010_314_RGB_LATLNG.tif*
+- *3320D_2010_315_RGB_LATLNG.tif*
+- *3420B_2010_328_RGB_LATLNG.tif*
+- *3420C_2010_327_RGB_LATLNG.tif*
+
+You should see the following map, with four aerial photographs covering our whole study area:
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/raster1.png")
+grid.raster(img)
+```
+
+#### Creating a Virtual Raster
+
+Now move the `roads` layer to the top of the Layer panel (you will need to load this if you have started a new project). As you can see from this, the study area lies across all four photographs, which means you will have to work with four rasters all the time. This can be facilitated by making these into a single composite layer. QGIS allows you to do this by creating either a virtual composite (a catalog with pointers to the original files) or by merging the existing files into a single new file. We'll look at the first of these here. 
+
+Virtual composites do not make a new file, but provide a single layer which references all the original files. This can reduce processing time and disk usage when trying to merge many files. To do this, open the 'Processing toolbox' ([Processing] > [Toolbox]), and select the 'Build virtual raster' algorithm from [GDAL] > [Raster miscellaneous]. 
+
+- In the dialog that appears click on the '...' button next to the 'Input layers' parameter and check all the layers or use the Select All button
+- Uncheck the 'Place each input file into a separate band' parameter 
+- As before, Processing will save the new image as a temporary layer. To save the results as a file file click on the '...' button under 'Virtual'. Note again that this is *not* a new image, simply a file with pointers to the original images
+- Click 'Run'
+
+You may have noticed that the dialog box creates a long text string in the window labelled 'GDAL/OGR console call'. This the command line function that QGIS passes to GDAL to run. You can copy and paste this text to your systems terminal (Windows: OSGeo shell; Linux and Mac: terminal), and run it there, or use this in scripts. We'll be using starting to work with these interfaces over the next couple of weeks. Use the Help button to get more help on the syntax of GDAL commands.
+
+The dialog box should show you the output from the command, and should look like this. If you are using a Mac and you get an error message, the appendix contains a work-around for this. 
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/virtual_composite1.png")
+grid.raster(img)
+```
+
+You can now remove the original four rasters from the Layers Panel and leave only the output virtual catalog raster. Fully merging raster images can be carried out by using the 'Merge' tool from [GDAL] > [Raster miscellaneous].
+
+#### Reprojecting raster layers
+
+As with vector layers, QGIS will reproject raster data 'on-the-fly' to the projection of the current project. Of course, this only alters the projection in the map display. To reproject the layer itself, go to [GDAL] > [Raster projections] > [Open Warp] (Note this will work with original and virtual raster layers).
+
+- Set 'Input Layer' to the virtual composite (`OUTPUT`)
+- Set 'Target CRS' to the UTM zone we've used before (34S; EPSG:32734)
+- Rather than using a temporary layer, set the output to 'image_34S.vrt'
+- Click 'Run'
+
+Remember that you can check the projection of any layer in the current project by the pop-up text from hovering the mouse cursor over the layer name. 
+
+You can now remove all layers except the reprojected virtual image (`image_34S`).
+
+### Raster symbology
+
+In this section, we'll walk through basic visualization of raster data, using an SRTM digital elevation model. 
+
+- Using the 'Browser' panel, load the file named *srtm_41_19_4326.tif* (in the *SRTM* folder in lab3 files)
+- Rename this to `DEM`;
+- Zoom to the extent of this layer by right-clicking on it in the Layer List and selecting 'Zoom to Layer'.
+
+Once loaded, you'll notice that it's a basic stretched grayscale representation of the DEM (QGIS automatically applies a stretch to the image for visualization purposes). 
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/dem.png")
+grid.raster(img)
+```
+
+There are options to change the raster symbology:
+
+- Right-click on the `DEM` layer and select 'Properties' option. Then switch to the Symbology tab
+- Click on the 'Symbology' button right above the Layers Panel. This will open the Layer Styling panel, rather than a separate dialog.
+
+Either way, this gives you a whole set of options for changing the way the raster layer is displayed. 
+- The default 'Color gradient' is set to 'Black to white', meaning that low pixel values are black and while high values are white. Try inverting this to see the results.
+- The 'Contrast enhancement' parameter is used to stretch the color palette to the layer values. By default it is set to 'Stretch to MinMax', meaning that the grayscale is stretched to the minimum and maximum values. Try changing the values used for the minimum and maximum:
+
+- 'User Defined': you choose both minimum and maximum values manually. Try setting the range from 0 to 150m to emphasize lower elevation topography
+- 'Cumulative count cut': this cuts the 2% (or the value you choose) of the values, and is useful for excluding outliers
+- 'Min / max': the real minimum and maximum values of the raster
+- 'Mean +/- standard deviation': the values will be calculated according to the mean value and the standard deviation.
+
+- Now change the 'Render' type to 'Singleband pseudocolor'
+- Choose a palette from the 'Color ramp' options
+- If the map does not automatically update, click the 'Classify' button
+
+To change the transparency of the whole raster switch to the 'Transparency' tab (the second one) and use the slider of the Global Opacity to lower the opacity. Obviously, this is not much use here, but works well when you have multiple layers. You can also change the transparency of single pixels. For this image, for example by setting any no data values to be transparent. We can use this to remove the uniformly colored borders. If you click on the select icon here (the arrow with a question mark), then click anywhere on the borders of the map, this will set all pixels with that value to be 100% transparent. Note that this gets added to the table, with the range of values and the transparency level. 
+
+```{r fig.width=3.5, fig.height=2., echo=FALSE}
+img <- readPNG("images/transparent.png")
+grid.raster(img)
+```
+
+You can change any of these values by clicking on them. If you set the 'To' value to 500, this will set the map so that all locations below 500m will be transparent, which allows a great deal of flexibility in adding overlays to your maps. 
+
+### Terrain analysis
+
+#### Hillshade
+
+Hillshading allows you to create a pseudo-3D image, using elevation to create a light/shadow mask which can then be overlain on other raster layers. Make sure you have the reprojected DEM image loaded, and go to the Processing toolbox. Here, select 'Raster terrain analysis' and open the 'Hillshade' dialog box. 
+
+The box allows you choose the elevation layer to be used as well as the position of the sun (to calculate shadows). The azimuth gives the horizontal angle (from N) and the vertical angle controls the height of the sun:
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/hillshade_angles.png")
+grid.raster(img)
+```
+
+Leave these at their default values for now, and save to a GeoTiff file (called *hillshade.tif*) instead of a temporary layer. Click 'Run' when all is done. 
+
+The `hillshade` layer is just a gray-scale image given the degree of shadow for each grid cell. Now let's add this as an overlay to the DEM to create a colored and shaded image.
+
+- Hide all the layers except the projected DEM (`dem_34S`) and `hillshade` layers
+- Click and drag the `dem_34S` to be beneath the `hillshade` layer in the Layers panel
+- Set the color of the `dem_34S` to be 'Singleband pseudocolor'
+- Set the hillshade layer to be transparent by clicking on the 'Transparency' tab in the layer properties, and set the 'Global opacity' to 50%.
+
+You should get a result like this:
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/hillshade_dem.png")
+grid.raster(img)
+```
+
+Try remaking the `hillshade` layer with different combinations of angles to see the effect of moving the sun. Remember to save the project when you are done.
+
+#### Slope and aspect calculations
+
+There are a variety of other indices that can be calculated from an elevation raster. Two of the main ones are slope and aspect. You should have a pretty good sense of the process by now, but the steps are given below:
+
+For slope, go to the 'Processing toolbox', then 'Raster terrain analysis' and 'Slope'. There are few options here, so set the output file name to *slope.tif* and click 'Run'.
+
+For aspect, go to the 'Processing toolbox', then 'Raster terrain analysis' and 'Aspect'. In QGIS, aspect is given as degrees from north (N = 0; E = 90; S = 180; W = 270)
+
+### Using the Raster Calculator
+
+Now let's try another real estate problem, but based on these raster layers. Our buyers now wish to purchase a building and build a smaller cottage on the property. In the Southern Hemisphere, we know that an ideal plot for development needs to have areas on it that are north-facing, and with a slope of less than five degrees. But if the slope is less than 2 degrees, then the aspect doesn’t matter. To find areas where both conditions are satisfied, we can use the Raster Calculator. 
+
+This calculator is used to carry out map algebra, i.e. algebraic operations on raster layers. Remember that any raster is simply a 2D array of numbers; map algebra allows us to work with these number to transform individual (or multiple) layers. Here, we will use conditional and logical operators to find areas corresponding to our criteria. 
+
+QGIS has different raster calculators available:
+
+- [Raster] > [Raster Calculator]
+- [Processing] > [Raster Analysis] > [Raster calculator]
+- [Processing] > [GDAL] > [Raster miscellaneous] > [Raster calculator]
+- [SAGA] > [Raster calculus] > [Raster calculator]
+
+Each tool will give the same results, but the syntax may be slightly different and the availability of operators may vary. Here we will use the built-in calculator in the 'Processing Toolbox'. Go to 'Raster Analysis' and 'Raster calculator' to open this. 
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/raster_calculator.png")
+grid.raster(img)
+```
+
+- The upper left panel lists all available raster layer. The names are given `name@N` where `name` is the name of the layer and `N` is the raster band used. As all the images we are working with currently are single band, $N=1$ for all the current images
+- The upper right panel that resembles a calculator key pad lists a set of the most commonly used operators. 
+
+Let's start by finding all north facing pixels. North is at 0 degrees, so for the terrain to face north, its aspect needs to be greater than 270 degrees and less than 90 degrees. In the 'Expression' panel, enter the following formula to represent this:
+
+```
+"aspect@1" <= 90 OR "aspect@1" >= 270
+```
+
+In the 'Reference layer(s)...' panel, select the `aspect@1` layer. This will set the set up the output layer (i.e. sets the the cell size, extent and CRS). This can be also be done manually in the subsequent options. Set the output layer name to *aspect_north.tif*, and click 'Run'. Your results should like this, where white cells (1) meet the conditions we set and black cells (0) do not.
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/aspect_north.png")
+grid.raster(img)
+```
+
+Now that you've done the aspect, repeat this operation to create two separate new analyses of the DEM layer:
+
+- All areas where the slope is less than or equal to 2 degrees (save this as *slope_lte2.tif*)
+- All areas where the slope is be less than or equal to 5 degrees (save this as *slope_lte5.tif*)
+
+Now we need to combine these to find the areas that match the set of conditions described above. You need to find areas where the slope is at or below 5 degrees AND the terrain is facing north, OR the slope is at or below 2 degrees. Open your Raster calculator again, and enter the following expression:
+
+```
+( aspect_north@1 = 1 AND slope_lte5@1 = 1 ) OR slope_lte2@1 = 1
+```
+
+- Set the 'Reference layer(s)' parameter using any of the layers used in the expression
+- Save the output as *all_conditions.tif*
+- Click 'Run'
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/all_conditions.png")
+grid.raster(img)
+```
+
+The combined analysis has left us with many, very small areas where the conditions are met, but are too small to build anything on. We can remove these using the 'Sieve' tool under 'GDAL' > 'Raster analysis' in the Processing toolbox. If you are using a Mac and get an error message while running this, see the appendix for a possible work-around.
+
+- Set the 'Input' file to `all_conditions`
+- Save the output as *all_conditions_sieve.tif*
+- Set the 'Threshold' to 8 and check 'Use 8-connectedness'.
+
+The threshold is the size of patch to be removed. This will remove all patches of less than 8 contiguous pixels of the same value. Once processing is done, the new layer will load into the canvas. In the default output, all null values have been set to a large negative number, which skews the image. As we are not interested in these, set these value to zero by opening the 'Raster Calculator' again, and using the following expression:
+
+```
+(all_conditions_sieve@1 <= 0) = 0
+```
+
+Save the output as *all_conditions_simple.tif*.
+
+### Reclassifying a raster layer
+
+The current aspect map has direction in degrees from north. We'll now reclassify this into categories representing the four ordinal directions (N, W, S, E) as follows:
+
+- 1 = North (from 0 to 45 and from 315 to 360);
+- 2 = East (from 45 to 135)
+- 3 = South (from 135 to 225)
+- 4 = West (from 225 to 315)
+
+While we can do this with the raster calculator the formula will quickly become large and complicated. An alternative is to use the 'Reclassify' tool in 'Processing' > 'Raster analysis'. Open this now and 
+
+- Choose `aspect` as the Input raster layer
+- Click on the '...' next to 'Reclassification table'. A table-like dialog will pop up where you can choose the minimum, maximum and new values for each class.
+- Click on the Add row button and add 5 rows. Fill each row as the following picture and click OK:
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/reclassify_table.png")
+grid.raster(img)
+```
+
+- Save the layer as *aspect_reclass.tif*
+- Click on 'Run'
+
+Let’s give this layer a better style. Open the Layer Styling panel, and choose 'Paletted/Unique values' instead of 'Singleband gray'. Select 'Random colors' and click 'Classify'.
+
+### Querying the raster
+
+Unlike vectors, raster layers don’t have an attribute table: each pixel contains one or more numerical values, depending if the raster is singleband or multiband. You can still query the value of any given pixel using the 'Identify' button. Select this now and the original dem layer (`dem_34S`) and try clicking on a few areas to see their elevation value. 
+
+The 'Value Tool' plugin extends this basic querying to use multiple layers and to show values currently under the cursor (without clicking). Go to [Plugins] > [Manage/Install Plugins...]. In the 'All' tab, type Value Tool in the search box, select the plugin and click 'Install Plugin'.  The new Value Tool panel should now appear. If it does not, or if you need to reopen this (or any other plugin) you can do so by enabling it in [View] > [Panels] > [Value Tool].  or by clicking on the new icon of the toolbar.
+
+Now check the 'Enable' check box and be sure that only the `dem_34S` layer is active in the Layers panel. Now move the cursor on the map to show the value of the different pixels. If you activate (check) other layers in the Layer panel, the tool will show you the value of all active layer. Activate the `slope` and `aspect` layers and try this now. The 'Graph'; tab shows these results as a plot, which could be used to show values across different reflectance bands in a multiband image. 
+
+
+## Layer conversion
+
+### Raster to Vector Conversion
+Converting between raster and vector formats allows you to make use of both raster and vector data when solving a GIS problem, as well as using the various analysis methods unique to these two forms of geographic data. This increases the flexibility you have when considering data sources and processing methods for solving a GIS problem.
+
+Here, we'll convert the raster result of the previous section to a vector layer.
+
+- Make sure that *all_conditions_simple.tif* is selected in the layer panel
+- Go to the [Raster] menu then [Conversion] > [Polygonize (Raster to Vector)]
+- Set the 'Name of field' to 'suitable'
+- Save the output as *all_terrain.shp*
+
+Now you have a vector file which contains all the values of the raster, including both the suitable (1) and unsuitable (0) areas. Now use the 'Extract by attribute' tool to select only the polygons where `suitable = 1` (this is in the processing toolbox under 'Vector selection'). Save the new layer as *suitable_terrain.shp*.
+
+The new layer should look like this (overlain on the DEM).
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/suitable_terrain.png")
+grid.raster(img)
+```
+
+### Vector to Raster conversion
+
+To convert in the opposite direction, the [Rasterize (Vector to Raster)] tool can be found under the same menu. Open this tool, then set it up as follows:
+
+- Input file is `all_terrain`
+- Output file as temporary scratch file
+- Width and Height are 837 and 661, respectively
+- Set the extent using the `all_terrain` layer
+- Click 'Run'
+
+When it is complete, gauge its success by comparing the new raster with the original one. They should match up exactly, pixel for pixel. Note that the size of the output image is specified here to be the same as the original raster which was vectorized. To view the dimensions of an image, open its metadata (Metadata tab in the Layer Properties).
+
+## Combining the Analyses
+
+Using the vectorized results of the raster analysis will allow you to select only those buildings on suitable terrain.
+
+Make sure the following layers are loaded (you might want to remove some of the extra layers to simplify things)
+
+- `hillshade`
+- `dem_34S`
+- `buildings_100m`
+- `suitable_terrain`
+
+Now use the 'Intersect' tool ([Vector] > [Geoprocessing Tools]) to create a new vector layer called *new_solution.shp*. This should contain only those buildings which intersect the `suitable_terrain` layer. You may get an "Invalid geometry" error, which results from topological problems with the vectorized layer. You can fix this using the 'Fix geometry' tool in the [Vector geometry] toolbox. Run this, and use the output of this to make the selection. 
+
+Look at each of the buildings in your new_solution layer. Compare them with the suitable_terrain layer by changing the symbology for the new_solution layer so that it has outlines only. Note that the intersection has clipped any building that falls across the border of the `suitable_terrain` layer. We can refine this by using a negative buffer to only include buildings that are well located in suitable terrain. 
+
+- Reopen the 'Buffer' tool
+- Set the input layer to `suitable_terrain`
+- Set the distance to -100 to get a buffer inside the existing polygon
+- Save this as a temporary layer (it will be called 'Buffered')
+- Click 'Dissolve result'
+- Click 'Run'
+
+Now redo the intersection using this new layer. Use the 'Select by Location' tool ([Vector] > [Research Tools] > [Select by location]).
+
+- Set 'Select feature from...' to `buildings_100m`
+- Set 'By comparing to...' to `Buffered` (the buffer layer you just created)
+- Make sure 'are within' is checked, and not 'intersect'
+- Click 'Run'
+
+And you should see this, where only buildings that are at least 100m *within* the suitable location are selected.
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/last_solution.png")
+grid.raster(img)
+```
+
+
+## Appendix: _iconv issue
+
+**Note that this is a Mac OSX problem**. If you get the following error message when trying to work with the raster layers and GDAL, it may be due to a conflict between a QGIS library and a system library (*libiconv.2.dylib*). The error will look something like this:
+
+```
+GDAL command output:
+dyld: Symbol not found: _iconv
+
+Referenced from: /usr/lib/libcups.2.dylib
+
+Expected in: /Applications/QGIS3.4.app/Contents/MacOS/lib/libiconv.2.dylib
+
+in /usr/lib/libcups.2.dylib
+```
+
+To fix this, you need to overwrite the QGIS version of this library with the system library. First backup the the existing QGIS library. If you are not sure about what this means, please ask me for help!
+
+```
+mv /Applications/QGIS3.4.app/Contents/MacOS/lib/libiconv.2.dylib /Applications/QGIS3.4.app/Contents/MacOS/lib/libiconv.2.dylib.old
+```
+
+Then copy the system version:
+
+```
+cp /usr/lib/libiconv.2.dylib /Applications/QGIS3.4.app/Contents/MacOS/lib/
+```
+
+Fix taken from https://github.com/qgis/QGIS-Mac-Packager/issues/28
+
+If this still does not fix the problem (it didn't on my laptop), then you may need to use an alternative install of QGIS developed by William Kyngsburye available [here][kcID]. To install this, first uninstall your existing version of QGIS by dragging the application icon to the trash, then download the installer (*QGIS-macOS-3.4.12-1.dmg*). If you run this, it will open a new window with a set of installers. Work through these in sequence:
+
+- 1 Install python-3.6.8-macosx10.9.pkg
+- 2 Install GDAL Complete 2.4.pkg
+- 3 Install QGIS 3 LTR.pkg
+
+This will reinstall the LTR version of QGIS, but will correctly configured links to GDAL. 
+
+[tmID]: https://docs.qgis.org/testing/en/docs/training_manual/index.html
+[epsgID]: https://spatialreference.org
+[kcID]: https://www.kyngchaos.com/software/qgis/
