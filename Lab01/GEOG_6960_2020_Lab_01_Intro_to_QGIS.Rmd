@@ -1,0 +1,159 @@
+---
+title: 'GEOG 5670/6670 Lab 01: Introduction to QGIS'
+author: | 
+  | Simon Brewer
+  | Geography Department
+  | University of Utah
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    fig_caption: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(png)
+library(grid)
+```
+
+## Introduction
+
+This first lab is just designed to get you started with Quantum GIS. It will cover installing QGIS, a quick tour of the interface and a simple example of reading in data and making a map. The lab is modified from chapter 1 in the book *Learn QGIS* by Cutts and Graser. All labs in this class were developed using QGIS version 3.4.14, and have been tested with the current long term release (LTR) version 3.16. 
+
+## Installing QGIS
+
+QGIS can be downloaded from https://qgis.org/en/site/forusers/download.html. It is available as a binary install for most operating systems (Windows, Mac OSX, Linux), and the source code can be accessed from the 'SOURCES' tab on this page. Some recommendations for installing it are provided below for different OS:
+
+### Windows
+
+Windows users can use two methods to install QGIS. The first of these is the standalone installer; this is a single file containing both QGIS and the GRASS plugin. Download this and run the executable file to install QGIS
+
+The second method uses the OSGeo4W network installer. This generally recommended as other software can be easily added through the same interface (e.g. MapServer). To use this, download the installer and run it. This will open a menu with three options:
+
+- Express desktop install
+- Express Web_GIS install
+- Advanced install
+
+Select the first of these, and a new menu will open with a subset of software that can be installed. Make sure `QGIS`, `GDAL` and `GRASS GIS` are checked on this page and click 'Next'. This will now download the necessary files from OSGeo and install them. Once done, you should see the following options in the start menu:
+
+If this has not worked, you can use the 'Advanced install' instead. This provides a list of the full set of software that you can install. Again, just select `QGIS Desktop` (long term release) and `GRASS GIS` under `Desktop` as well as `GDAL` under ??. Click next for this to install.
+
+### Mac OSX
+
+The simplest way to install QGIS is to download the all-in-one, signed installer. Once downloaded, double-click to run, and when prompted, move the QGIS application to your applications menu. Alternatively, QGIS can be installed using HomeBrew:
+
+```
+brew install qgis
+```
+or through Fink or MacPorts.
+
+### Ubuntu (and Debian distros)
+
+The easiest way to install for Ubuntu and Debian systems is to use `apt`. The recommended way to do this is to add the qgis repository to your `/etc/apt/sources.list` file, and use this to install the software. For example, to install the LTR version of QGIS on the latest LTS version of Ubuntu (20.04), add the following lines to this file:
+
+```
+deb     https://qgis.org/ubuntu focal main
+deb-src https://qgis.org/ubuntu focal main
+```
+
+If you have a different Ubuntu or Debian distribution, change these lines accordingly. Then run the following two lines in a shell:
+
+```
+sudo apt-get update
+sudo apt-get install qgis qgis-plugin-grass
+```
+
+Further instructions, including dealing with keyserver errors can be found here: https://qgis.org/en/site/forusers/alldownloads.html#debian-ubuntu
+
+## QGIS Interface
+
+Now start QGIS:
+
+- From the start menu (windows)
+- From the application menu (MacOSX)
+- From the command line `qgis` (Linux)
+
+This should open the main QGIS window, which will look something like this (Mac):
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/qgis1mac.png")
+grid.raster(img)
+```
+
+Or this (Windows):
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/qgis1win.png")
+grid.raster(img)
+```
+
+On the left hand side there is a data browser (top panel) and list of current layers (bottom, currently empty). The main panel is the map display, and underneath this is the information bar, which displays projection information and tools for navigating the map. 
+
+### Main toolbars
+
+Across the top of the screen are the man QGIS toolbars:
+
+- Project: create, open, save and access print functions
+```{r fig.width=5.5, fig.height=1.5, echo=FALSE}
+img <- readPNG("images/project.png")
+grid.raster(img)
+```
+
+- Map navigation: pan and zoom, bookmarks and refresh
+```{r fig.width=5.5, fig.height=1.5, echo=FALSE}
+img <- readPNG("images/mapnavigation.png")
+grid.raster(img)
+```
+
+- Attributes: identify, open tables, select and measure
+```{r fig.width=5.5, fig.height=1.5, echo=FALSE}
+img <- readPNG("images/attributes.png")
+grid.raster(img)
+```
+
+- Data source: Create new geopackage files and shapefiles, as well as scratch layer
+```{r fig.width=5.5, fig.height=1.5, echo=FALSE}
+img <- readPNG("images/datasource.png")
+grid.raster(img)
+```
+
+Next to this will be some other toolbars for digitizing, creating labels, access to plugins (see below), etc
+
+QGIS has several other toolbars that can be added to this default layout. To do this, go to the [View] menu, the [Toolbars >] and check any toolbars you would like to add. For now just add the 'Manage layers' toolbar, which will cause the following to appear:
+
+- Manage layers: Add new layers from vector or raster files, databases, web services. Create new layers
+```{r fig.width=5.5, fig.height=1.5, echo=FALSE}
+img <- readPNG("images/layers.png")
+grid.raster(img)
+```
+
+### Plug-ins
+
+QGIS has a set of plug-ins developed by the QGIS community that extend the base functionality. To see what is available, go to the [Plugins] menu and select [Manage and install plugins]. This will open the following window, which allows you to search through all plug-ins, or filter by those already installed, or not. Note that only plug-ins that are checked in this menu are both installed and loaded in your current session (e.g. the GRASS plug-in). We will be using the GRASS plug-in later in this semester, so make sure that it is available. Note that checking an unchecked plug-in usually will make a new toolbar appear for that item. Plug-ins are relatively easy to develop yourself, and we will explore how to do this later.
+
+```{r fig.width=5.5, fig.height=3.5, echo=FALSE}
+img <- readPNG("images/plugins.png")
+grid.raster(img)
+```
+
+## Exploring data with QGIS
+
+We'll now walk through the basic steps of importing some data and visualizing it. Download the zipfile *forestry.zip* from Canvas, move this to a working directory and unzip the file. Go to the browser window on the left hand of the screen and navigate to this folder. This contains a set of GIS layer provided by a forestry school in Finland. In this folder, we'll start by adding a raster layer *basic_map.tif* (this is just a scanned base map). Add this to QGIS by either dragging it to the layer window or double-clicking on it. 
+
+```{r fig.width=5.5, fig.height=3.5, echo=FALSE}
+img <- readPNG("images/browser.png")
+grid.raster(img)
+```
+
+And you should see it appear in the map window:
+
+```{r fig.width=5.5, fig.height=3.5, echo=FALSE}
+img <- readPNG("images/mapwindow.png")
+grid.raster(img)
+```
+
+From here you can use the navigation toolbar to zoom, pan, etc. Now add a shape file (*forest_stands_2012.shp*). This will overlay the previous map. You can change the order of the layers by moving them up or down in the layer window. Double-clicking any layer in layer window will open up an attribute window and can be used to change symbology and colors, which we will look at in more detail next week. 
+
+We'll finish this lab here. Feel free to explore more of the data available in the *forestry* directory or the layers that are already loaded. When you are done, quit QGIS. You will be prompted to save the current project. Do this, naming it 'Lab01', which will create a QGIS project file *Lab01.qgz* in your current directory. This can be used to store all files related to a project, as well as any data that are created, and then allow you to save and reopen your work at any point. 
