@@ -1,0 +1,462 @@
+---
+title: 'GEOG 5670/6670 Lab 02: QGIS Tutorial'
+author: | 
+  | Simon Brewer
+  | Geography Department
+  | University of Utah
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    fig_caption: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(png)
+library(grid)
+```
+
+## Introduction
+
+In this lab, we'll simply walk through various aspects of working in QGIS. This will include making maps, changing symbology and running some simple analyses. The goal of this lab is to make sure you are familiar with QGIS, before we start working with different plug-ins and APIs. 
+
+The examples in this lab are modified from the [QGIS training manual][tmID], and further details and examples can be found in that document. The sample data used here comes from the QGIS training manual. It contains a series of layers from the region around the town of Swellendam in the Western Cape of South Africa. The dataset is available in a compressed file (*Lab2.zip*) on Canvas. Download this now, move it to a working directory and unzip it. At the end of the lab, we'll look briefly at importing data from other sources. 
+
+## Working with vector data
+
+### Loading simple data
+
+Launch QGIS from its desktop shortcut, menu item, etc. Once running, start a new project from the [Project] menu. Now go to [Layer] > [Data Source Manager], to get the following window. 
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/datasource.png")
+grid.raster(img)
+```
+
+This will allow you to add layers to your project. You can also do this through the data browser on the left hand side of the screen. Now use this browser to navigate to your working directory. Load the following layers from the 'shapefiles' directory:
+
+- *rivers.shp*
+- *protected_areas.shp*
+
+And you should see these two layers displayed in the map window. 
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/map1.png")
+grid.raster(img)
+```
+
+Now would be a good point to save the project. Go to [Project] > [Save] (or click on the little disk icon), and save the project as 'Lab2.qgz'. 
+
+### Attribute tables
+
+To see the attribute table associated with any layer, click on the layer name in the 'Layers' panel (bottom left), then go to [Layer] > [Open attribute table] (or press F6). For example, clicking on the 'rivers' layer will bring up the following table:
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/attribute.png")
+grid.raster(img)
+```
+
+### Other data formats
+
+QGIS can read from other formats. Two useful ones are GeoPackages and SpatialLite databases. 
+
+#### Geopackages
+
+The [GeoPackage open format][gpID] is a container that allows you to store multiple GIS layers in a single file, including both vector and raster data, as well as tables without spatial information; all these features allow you to share data easily and avoid file duplication.
+
+In order to load a layer from a GeoPackage, you will first need to create the connection to it:
+
+- Open the Data Source Manager
+- On the left click on the GeoPackage tab
+- Click on the New button and browse to the *training_data.gpkg* file in the lab2 data folder
+- Select the file and press 'Open' to select this file, then click 'Connect' to add the file path to the Geopackage connections list. (Note that this shows a list of the available layers)
+- Close the Data Source Manager
+
+In the layer browser on the left of the main QGIS window, there should now be a drop down menu associated with the 'GeoPackages' icon. Click on this to see the GeoPackage you just added, and from the available layers, add the 'roads' vector layer to the current project
+
+#### SpatiaLite 
+
+[SpatiaLite][spID] databases are an open source extension of SQLite including spatial SQL capability. These are designed to provide a lightweight but functional spatial DBMS. These databases can be added in the same way as we did for the GeoPackage. An alternative and quicker way is to:
+
+- Find the 'SpatiaLite' line in the browser window
+- Right click on it and select 'New Connection...'
+- Browse to the lab2 files, select the *landuse.sqlite* file and click 'Open'
+
+You should now see the *landuse.sqlite* layer appear in the dropdown menu. Click on this to add it to the map. 
+
+Now add the following layers to this project (note that you can bookmark any folder on your computer, by right clicking on it and selecting 'Add as a Favorite...')
+
+- `buildings`
+- `water`
+- `places`
+
+When you are done, save your project ([Project] > [Save]). At the risk of telling you something very obvious, it is good practice to save your projects regularly and often.
+
+### Improving the map
+
+#### Reordering layers
+
+The layers in your Layers list are generally drawn on the map in the order you add them, with the layer at the bottom of the list is drawn first. You can change the order of these layers by simply dragging the layer name up or down, and the layer at the top is drawn last. By changing the order that they are shown on the list, you can change the order they are drawn in. Reorder your layers to give the following list
+
+- `places`
+- `roads`
+- `rivers`
+- `buildings`
+- `water`
+- `protected_areas`
+- `landuse`
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/map2.png")
+grid.raster(img)
+```
+
+#### Changing symbology
+
+Layers are assigned random colors as they are added. We'll now change this to make your map more readable.
+
+The symbology of any layer can be altered from its 'Layer Properties'. You can open this table by double-clicking on any layer in the 'Layer' panel. Double click on the `landuse` layer to open this. This gives you access to a lot of information associated with the layer. For now, just go to the 'Symbology' tab (this looks like a little paint brush and a Romanian flag) to open the following window
+
+Now click the 'Fill' label, then the 'Color' drop-down menu. This will give you access to a large range of possible colors, and methods to choose them, including a color ramp, wheel, and picker. For now just select a gray, and click [OK], and you should see the map colors update. Now change the color of the water layer to a light blue. 
+
+Vector outlines can be changed from the same menu. Select the `landuse` layer again, open the layer properties, then the 'Symbology' This time, click on the 'Simple fill' line in the top part of the window. This will provide options to change the *stroke*, the pen used for the outline. For the `landuse` layer, change the stroke from 'Solid line' to 'No pen', to remove the join between different polygons (see below):
+
+```{r fig.width=3, fig.height=3., echo=FALSE}
+img <- readPNG("images/stroke1.png")
+grid.raster(img)
+```
+
+Now try:
+
+- Changing the `water` layer’s symbology again so that it has a darker blue outline
+- Changing the `rivers` layer’s symbology to a sensible representation of waterways (try changing the stroke width)
+
+#### Scale-based rendering
+
+Scale-based rendering allows QGIS to turn layers off or on depending on the scale of the current map display. So, for example, this will remove low resolution layers at fine spatial scale, and high resolution at coarse scale. In our case, we may decide to hide the buildings from view at small scales. Here, we'll set the `buildings` to only be rendered at small scales. 
+
+- Open the Layer Properties dialog for the buildings layer
+- Click on the 'Rendering' tab (this is the little paint brush)
+- Enable scale-based rendering by clicking on the check box labeled 'Scale dependent visibility'
+- Change the Minimum value to 1:10000, and click [OK]
+
+Now test the effects of this by zooming in and out in your map, noting when the `buildings` layer disappears and reappears.
+
+### Adding labels
+
+Let's now add some labels to the map to identify different features. We'll add text labels with the name of the set of features from the `places` layer. Start by opening the attribute table for this layer ([Layers] > [Open Attribute Layer]). The information we want is in the 'name' column. To add these, make sure the `places` layer is highlit, then go to [Layer] > [Labeling]. This will open a new menu with a lot of options for modifying the display. Go to the 'Labels' tab (the yellow arrow with 'abc' written on it). From here:
+
+- Make sure `places` is selected in the top drop down menu
+- Choose 'Single labels'
+- Choose 'name' from the 'Label with' drop down menu
+- Click [Apply] and close this window to see the new labels
+
+The labels can be easily modified to make them a little more visible. Go back to the Labeling options ([Layer] > [Labeling]) and change the following:
+
+- Font to Helvetica
+- Font size to 13.0
+
+Go to 'Buffering' options (this is a small blue box with 'abc' written on it), and check 'Draw text buffer' to add an contrast outline. You might also need to play around with the colors here. Try changing the font color to white and the buffer color to black:
+
+```{r fig.width=3, fig.height=2.5, echo=FALSE}
+img <- readPNG("images/label2.png")
+grid.raster(img)
+```
+
+#### Labeling lines
+
+Spatial line objects usually require any label to follow the direction of the line segment rather than placed horizontally. To add labels for the road network:
+
+- Open the Labeling menu for the `roads` layer
+- Set labels 'Single labels'
+- Choose 'name' as the field to use
+- Set the font Size to 10
+- Go to the 'Placement' tab (the four arrows) and and set the placement to be parallel, and check the 'On line' box
+- Add a buffer
+
+Finally, go to the 'Rendering' tab (the little paintbrush) and select the following options
+
+- 'Merge connected lines...' This avoids repeats of the same name over different line segments
+- 'Suppress labeling of features smaller than': set to 5mm
+
+```{r fig.width=3, fig.height=2.5, echo=FALSE}
+img <- readPNG("images/label3.png")
+grid.raster(img)
+```
+
+### Classifying vector data
+
+Rather than label large polygon area, we can instead create a thematic map. Here, we'll use the type of land use category to change the colors of the land use polygons. First, open the attribute table for this layer (F6); we will use the 'landuse' column for classification. Now double-click the `landuse` layer to open the layer properties, and go to the 'Symbology' tab. Choose 'Categorized' from the drop down menu, rather than 'Single symbol'. Set 'Column' to 'landuse' and choose the 'Greens' color ramp. Finally click 'Classify', and QGIS will set a color for each land use type. The list of types and associated colors can be seen now by clicking on the little arrow next to `landuse` in the Layer panel. Note that you can use the check boxes here to turn different types on and off. If you would like to manually set the colors for different type, open the Symbology menu, and click on the little swatch of color next any land use type. 
+
+Try doing the same thing for the `buildings` layer, using the attribute 'building' and a spectral color ramp. 
+
+Symbol colors can also be set using continuous values. Here, we'll add a new column to the `landuse` layer with the size of each polygon, then use this with a color ramp. Save your land use symbology (if you want to keep it) by going to the Style dropdown menu in the Symbology menu and selecting 'Save Style...'.
+
+Now, close the Layer Properties dialog, and open the attribute table for the `landuse` layer (F6).
+Enter edit mode by clicking on the pen icon in the top left, then click add 'new field' to add a column using this icon:
+
+```{r fig.width=1., fig.height=1., echo=FALSE}
+img <- readPNG("images/newcolumn.png")
+grid.raster(img)
+```
+
+In the new menu, add the name 'area' and set type to 'Decimal number (double)'. Click [OK] to create a new column filled with NULL values. Open the field calculator (the abacus icon) to set these values. In the new menu, check 'Update existing field' and choose 'AREA' from the drop down. In the list of available functions, click on 'Geometry' then double-click '$area' to set the expression to this. Click [OK], and the new column will be populated with the area values. 
+
+Now close the attribute table and open the Symbology menu. Choose 'Graduated' instead of 'Categorized'. Choose 'AREA' as the column. Set the color ramp by choosing a color for high values (e.g. green) and for low values (e.g. blue), and click [Classify].  By default, the intervals for the color classification are chosen using equal intervals. This doesn't work very well with these data, as there are a couple of large polygons that dominate the map. Go back to the Symbology menu, and set the 'mode' to 'Natural Breaks', which uses Jenk's method to choose intervals. Click [OK] and you should now see the polygons colored by size (I've removed the roads and protected areas here)
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/map3.png")
+grid.raster(img)
+```
+
+## Creating maps
+
+Next, we'll walk through exporting a map to a pdf file. For this, we use the layout manager, which allows you to st up and save multiple maps based on the same project. Open this now by going to [Projects] > [Layout Manager...]. In the new dialog box that appears, make cure the drop down menu is set to 'Empty layout' and click [Create]. Add a layout name (e.g. 'map1', etc), and click OK, to see the basic layout window. 
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/layout1.png")
+grid.raster(img)
+```
+
+By default this will be a Letter or A4 size, in landscape orientation. This can be changed from the Page Setup menu (under the Layout menu). To add a map, click on the 'Add new map' icon (the blank page n the left hand side), and draw a box on the page with the mouse where you would like the map to be positioned. The map can be moved by clicking and dragging, or resized using the white boxes. 
+
+The display will be of whatever is currently shown in the QGIS main map window, so you may wish to go back there are select any layers you need in the map. If you add or remove layers, click the 'Refresh' button back in the Layout window to update the map. You can pan from within the Layout window by using the pan icon (the page with arrows overlain on it). Once you have the map correctly located, click on the padlock icon to lock it in place. 
+
+You should see two panels on the right hand side of the screen. The first lists the various items that are being added to the map. For the moment, there should only be the map. We will go on to add other items here shortly. Below that is a panel showing various properties of the currently selected item (the map). From here, you can adjust the scale and rotation, change the horizontal and vertical limits of the map and overlay a graticule and a frame. 
+
+Next, add a title, using the 'Add label' icon, and drawing a box for the title above the map. This opens a new properties window that allows you enter the title text, change font size and alignment, etc. The map and title text can be aligned by shift-clicking on both objects and using the 'Align' menu to center them. 
+
+Other icons allow you to add a scalebar and a map legend. Note that the legend will include all elements in the map project by default. In the properties for the legend, clicking on the filter will remove all legend entries for layers that were not used in this map. 
+
+When you've finished adding elements and setting up the map, it can exported as a png, svg or pdf file from the [Layout] menu or from the icons on the top toolbar. Click on [Export to PDF], give it an informative name, and click [Save] to get your map. 
+
+## Digitizing features
+
+In this section, we'll walk through the steps to create a vector layer by digitizing features from an image. We'll start by creating an empty polygon layer, then use QGIS's digitization tools to add information.
+
+### Layer creation
+
+QGIS can create layers in different formats (Shapefile, SpatiaLite, Geopackage) as well as a temporary layers (Scratch). We will create this as a Shapefile, but note that you can always export the layer into these other formats later. Go to the [Layer] menu, the click on [Create Layer] > [New Shapefile Layer]. This will open the following dialog box:
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/create_layer.png")
+grid.raster(img)
+```
+
+- Set the file name to `school_property`. You may also need to click on the '...' next to this field to set the directory where the file will be saved
+- We are going to digitize polygons, so select 'Polygon' from the drop down menu
+- Set the projection to 'EPSG:4326 - WGS 84'. Note that the little icon next to this menu gives you new menu with all the available projections/CRS
+- By default the attribute table will only contain the ID of each feature. We'll add a text field to hold names. In section labeled 'New Field' write 'name' in the 'Name' box, set the 'Type' to 'Text data', then click 'Add to Fields List'
+
+We could of course multiple fields to the layer here, but we'll keep things simple for now. You can also remove any fields if you've made an error while setting them up. If you have everything set up, then click 'OK'.
+
+We'll use an image to digitize the features, so go to the data browser (or Data Source Manager) and navigate to the 'raster' directory in the 'lab2' data folder. Find and load *3420C_2010_327_RGB_LATLNG.tif* by double-clicking on the file. Zoom to this layer by highlighting it in the 'Layer' panel and clicking 'Zoom to layer' (the magnifying glass with a rectangle behind it).
+
+We will be digitizing these three features, so zoom in to find them (they are located at approximately 20.445,-34.024). 
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/field_outlines.png")
+grid.raster(img)
+```
+
+Lastly, move the image layer down in the Layer panel, so that it is below the other features (you may also want to turn some of these off by clicking on the check box so that the features are fully visible). 
+
+### Digitizing
+
+In order to begin digitizing, you’ll need to enter edit mode. 
+
+- Click on the `school_property` layer in the Layer list (Make very sure that the correct layer is selected, otherwise you’ll edit the wrong layer!)
+- Click on the 'Toggle Editing' button (the pen) or go to [Layer] > [Toggle Editing]. If you can’t find this button, check that the Digitizing toolbar is enabled from the [View] > [Toolbars] menu. 
+
+Once in edit mode, the Add Feature button should become active, so click this now to add the first feature (you can also do this from [Edit] > [Add Polygon Feature]). We'll now digitize the first feature (the athletics field). You’ll notice that your mouse cursor has become a crosshair. This allows you to more accurately place the points you’ll be digitizing. Remember that even as you’re using the digitizing tool, you can zoom in and out on your map by rolling the mouse wheel, and you can pan around by holding down the mouse wheel and dragging around in the map.
+
+- Start digitizing by clicking on a point somewhere along the edge of the field.
+- Place more points (vertices) by clicking further along the edge, until the shape you’re drawing completely covers the field.
+- After placing your last point/vertex, right-click to finish drawing the polygon. This will finalize the feature and open a dialog box to set the attribute data. Set 'id' to 1 and 'name' to 'Athletic Field'
+- Click OK and you’ve created a new feature
+
+Editing your digitized feature:
+- If you need to move any of the vertices, you can select them by double-clicking and holding down the left mouse button
+- New vertices can be inserted on any of the line segments by double-clicking. Then move the new vertex to the desired position and click once
+- You can shift the entire feature (not individual vertices) from [Edit] > [Move features]
+- You can also delete the entire feature by going to the [Edit] menu then [Delete Part] and clicking anywhere in the polygon you created
+
+Now go on to digitize the school (call this `school`) itself and the upper field (`upper_field`). Remember that each new feature needs to have a unique id value. When you are done, edits and then exit edit mode by clicking on the pen icon again., and click 'Save' to save your changes. Note that you can style the appearance of the fill, outline and label placement and formatting of the `school_property` layer as described above. 
+
+If you get the following error:
+
+> The feature cannot be added because it's geometry collapsed due to intersection avoidance
+
+This is because QGIS is trying to snap your new polygon to an existing layer. Try removing the `landuse` layer (which is the most likely culprit), and retry the digitization. 
+
+## Feature topology
+
+Topology is a useful aspect of vector data layers, because it minimizes errors such as overlap or gaps.
+
+> For example: if two features share a border, and you edit the border using topology, then you won’t need to edit first one feature, then another, and carefully line up the borders so that they match. Instead, you can edit their shared border and both features will change at the same time.
+
+It's also worth noting that QGIS distinguishes between *features*, which are individual polygons with their own attributes and *parts*, which are separate vectors making up a single feature. A single feature may contain multiple parts, but a single part only belongs to one feature. All examples here are based on polygon features, but the basic ideas will carry over to other vector data. 
+
+### Copying a feature
+
+Rather than change the protected area layer directly, we'll make a copy of one of the features and modify it. 
+
+- Go to [Edit] > [Select] > [Select Features(s)]
+- Click on the southern protected area (this is Bontebok National Park)
+- Now click on [Edit] > [Copy Features] (or Ctrl-C), then [Edit] > [Paste Features As] > [Temporary Scratch Layer...]
+- Give this the name `bontebok_park`, and this should appear in the Layer panel. 
+
+### Snapping 
+
+To make topological editing easier, it’s best to enable snapping, which will allow your mouse cursor to snap to other objects while you digitize. To set snapping options, navigate to the [Project] menu then [Snapping Options...]. Set the following:
+
+- 'Enable snapping' on (the magnet)
+- 'Topological editing' on
+- Check 'Avoid intersection' for land use and protected areas
+
+Before proceeding make sure the new layer is selected and switch editing on by clicking on the pen icon or going to [Layer] > [Toggle Editing]. Note that as you move through these steps it is important to save often so that your work is stored. You will be prompted to if you switch editing off. 
+
+### Simplify Feature
+
+The Simplify Feature tool offers a quick way to reduce the complexity of features with many vertices. Activate this tool [Edit] > [Simplify Features], then click on the new park feature.
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/simplify_feature.png")
+grid.raster(img)
+```
+
+In the new menu that appears, select 'Simplify by distance' and 'Pixels' for the tolerance. Now try increasing the tolerance. You'll notice that as this value increases, some of the vertices start to be removed. If you click 'OK', then the original polygon feature will be replaced with the new, simpler one. 
+
+### Editing features
+
+We will add a new polygon that fills the gap in the north, so that the final layer looks like this:
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/bontebok2.png")
+grid.raster(img)
+```
+
+Use the same method as above for selecting the school areas ([Edit] > [Add Polygon Feature]). Rather than digitizing anywhere, move the cursor close to an existing vertex. When the cursor changes shape (becomes a square), click the left button to add a point. Note that this gets automatically joined to the existing vertex. Continue all the way around until the polygon is formed. 
+
+### Reshaping features
+
+The 'Reshape Features' tool (under the [Edit] menu) allows you to modify a feature by adding or removing a section of an existing feature. 
+
+To add or extend a feature, select this tool, then click within the park boundary. Then set vertices to define the additional shape outside the boundary and finish by clicking back within the park. Right-click to finish, and you should see the original boundary extended. 
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/reshape1.png")
+grid.raster(img)
+```
+
+If you repeat this but place the first and last vertices *outside* of the original boundary, then the tool will clip a section out:
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/reshape2.png")
+grid.raster(img)
+```
+
+The result of the above:
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/reshape3.png")
+grid.raster(img)
+```
+
+### Splitting Features
+
+The 'Split Features' tool operates in a similar way to the 'Reshape' tool, except that rather than removing a section, it will split an existing feature into two parts and keep both. We will use the tool to split a corner from the park layer.
+
+Select the Split Features tool ([Edit] > [Split Features]) and click on a vertex to begin drawing a line. Click the vertex on the opposite side of the corner you wish to split and right-click to complete the line. 
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/split_feature.png")
+grid.raster(img)
+```
+
+Use the 'Single Feature' tool to select the corner you just split; the new feature will now be highlighted separately from the rest of the park. 
+
+We can now merge all features into a single park boundary. Click the 'Select Feature' tool ([Edit] menu), then draw a rectangle with the mouse covering all features on this layer. Or go to [Edit] > [Select...] > [Select All Features]. Now go to [Edit] > [Merge Selected Features]. This will bring a table showing all the proposed features for the merge, which allows you to choose which feature to use to fill the attribute table. Click 'OK' and the three features will merge into a single polygon. 
+
+### Rings and parts
+
+The Add Ring tool allows allows you to take a hole out of a feature, as long as the hole is bounded on all side by the feature. For example, if the park region contains a lake, we can add a hole to represent this to ensure it is not counted in any analysis of the park. 
+
+Select the `bontebok_park` layer, and go to [Edit] > [Add ring]. In the center of one of the forest polygons use a mouse to create the outline of a hole. You may need to disable snapping if the vertices of the ring keep snapping to the exterior boundary. 
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/ring1.png")
+grid.raster(img)
+```
+
+The ring can be deleted by selecting the Delete Ring tool under the [Edit] menu and clicking anywhere on the ring. 
+
+We can equally add a *part* to an existing feature. This adds a new polygon (or line or point) but associated with the existing feature (not a separate new feature). To do this, select the `bontebok_park` layer, then go to [Edit] > [Add Part]. Use the mouse to define a shape that is separate from the main polygon. As with digitizing a new feature, right-click when finished. To demonstrate that this forms part of the same feature, use the 'Select Feature' tool, click on a different polygon, then back to the one you used. You should see both the original polygon and the new part highlit together. 
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/part1.png")
+grid.raster(img)
+```
+
+### Correcting topology
+
+Topology features can sometimes need to be updated. In this example, we may need to remove the space between the new part we created and the existing park boundary. Instead of creating a new polygon to fill the gap, we'll use the Vertex Tool to edit the existing polygons and join them. 
+
+Make sure the `bontebok_park` layer is selected and edit mode is active. Select the Vertex Tool ([Edit] > [Vertex Tool]). Now start joining these two polygons by picking a vertex from one and double-click/dragging it to a vertex on the other polygon. When the cursor changes, then they will snap into place. Continue until you have something like this:
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/snapping.png")
+grid.raster(img)
+```
+
+Merging parts is a little more complex than merging features. To do this, we first need to convert the parts to individual features. Select the `bontebok_park` layer, then go to [Vector] > [Geometry Tools] > [Multiparts to Singleparts]. This will create a new temporary layer called `Single Parts`. 
+
+Select this new layer, then select all features (drawing a rectangle or from [Edit] > [Select...]). Now go to [Edit] > [Merge Features], to get the final modified map of the park boundary. 
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/final_map.png")
+grid.raster(img)
+```
+
+#### Exporting as a shapefile
+
+Click the 'Memory' icon next to the `Single Parts` layer to open the Save Scratch Layer dialog. Select the ESRI Shapefile format, then use the [...] button to browse to your current working directory, and save the file as *newpark.shp*. If you need to change any of the temporary layer’s properties (CRS, extent, fields), right-click and use the [Export] > [Save Features as] contextual menu instead, ensuring that the 'Add saved file to map' option is checked. In the Layers panel, the temporary layer will be replaced with the new saved buildings layer and the temporary icon next to it removed.
+
+## Importing from Open Street Maps
+
+Open a new QGIS project, then open the Data Source Manager ([Layer] > [Data Source Manager]). In the Browser tab, expand the 'XYZ Tiles' drop-down menu and double-click the OpenStreetMap item. This will open a map of the world in the map display. Now pan and zoom to the area you’d like to use. Once you're happy with this, go to [Plugins] > [Manage/Install Plugins...] to enable the extraction tools. Select 'All' from the left-hand list, then scroll down or search for 'QuickOSM'. Click [Install Plugin] and then [Close] once it has finished installing.
+
+Now:
+
+- Run the new plugin from by going to [Vector] > [QuickOSM] > [QuickOSM...]. 
+- In the dialog box that opens, select 'Quick query' and then `building` from the 'Key' drop-down menu
+- Leave the Value field empty, to query all buildings
+- Select 'Canvas Extent' in the next drop-down menu
+- Expand the 'Advanced' menu and uncheck all geometry types on the right except 'Multipolygons' (When I ran this for part of Southern England, this didn't work unless I kept everything checked)
+- Click [Run query]
+
+Repeat this to extract other data (not all of these will work, depending on your area):
+
+- 'Key = landuse' and 'Multipolygons' geometry type.
+- 'Key = boundary', 'Value = protected_area' and 'Multipolygons' geometry type.
+- 'Key = natural', 'Value = water' and 'Multipolygons' geometry type.
+- 'Key = highway' and check 'Lines' and 'Multilines' geometry types.
+- 'Key = waterway', 'Value = river' and check 'Lines' and 'Multilines' geometry types.
+- 'Key = place' and 'Points' geometry type.
+
+Note that the layers that have been created are all temporary (indicated by the memory icon next to their name). We now need to save the resulting data for further use. 
+
+#### Exporting the data
+
+Use the instructions given above to save the `buildings` layer as a shapefile (*mybuildings.shp*). 
+
+Alternatively, we can export this as a GeoPackage. To do this, go back to the new `buildings` layer in the Layers panel. Right-click on this and select [Export] > [Save Features as]. When the dialog window opens, select 'GeoPackage' from the drop down menu. Give this a name (e.g. *mydata* or something a little more meaningful), name the layer 'buildings' and save. You will now have a new buildings layer in the Layer panel, but with the GeoPackage name. Rename the layer in its properties dialog with 'buildings'. Repeat the process with other layers, saving them to the same GeoPackage but with different layer names. it as roads in the same GeoPackage database.
+
+A similar process can be used to export layers as a SpatiaLite file, just by changing the option from the drop-down menu. 
+
+
+[tmID]: https://docs.qgis.org/testing/en/docs/training_manual/index.html
+[gpID]: https://www.geopackage.org
+[slID]: https://www.gaia-gis.it/gaia-sins/
