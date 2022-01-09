@@ -161,3 +161,7 @@ From here you can use the navigation toolbar to zoom, pan, etc. Now add a shape 
 
 We'll finish this lab here. Feel free to explore more of the data available in the *forestry* directory or the layers that are already loaded. When you are done, quit QGIS. You will be prompted to save the current project. Do this, naming it 'Lab01', which will create a QGIS project file *Lab01.qgz* in your current directory. This can be used to store all files related to a project, as well as any data that are created, and then allow you to save and reopen your work at any point. 
 
+## Stopping OnDemand
+
+Finally, disconnect from the virtual desktop. There is a partly hidden menu on the left hand side of the desktop. Click the arrow to expand this, then click the icon at the bottom to disconnect. Note that this only disconnects you from your session, and it is still running. You can restart by going to the dashboard, to the top menu and clicking on the last icon (looks a bit like two gray squares). This will list all your active sessions, and if you click the button [Launch GEOG 5670 desktop], you go back to the desktop. If you are finished, please click on [Delete] instead. This stops your current session and frees up the resources for others. 
+
