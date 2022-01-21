@@ -22,7 +22,7 @@ library(grid)
 
 In this lab, we'll simply walk through various aspects of working in QGIS. This will include making maps, changing symbology and running some simple analyses. The goal of this lab is to make sure you are familiar with QGIS, before we start working with different plug-ins and APIs. 
 
-The examples in this lab are modified from the [QGIS training manual][tmID], and further details and examples can be found in that document. The sample data used here comes from the QGIS training manual. It contains a series of layers from the region around the town of Swellendam in the Western Cape of South Africa. The dataset is available in a compressed file (*Lab2.zip*) on Canvas. Download this now, move it to a working directory and unzip it. At the end of the lab, we'll look briefly at importing data from other sources. 
+The examples in this lab are modified from the [QGIS training manual][tmID], and further details and examples can be found in that document. The sample data used here comes from the QGIS training manual. It contains a series of layers from the region around the town of [Swellendam][swID] in the Western Cape of South Africa. The dataset is available in a compressed file (*lab2_data.zip*) on Canvas. Download this now, move it to a working directory and unzip it. At the end of the lab, we'll look briefly at importing data from other sources. 
 
 ## Working with vector data
 
@@ -35,7 +35,7 @@ img <- readPNG("images/datasource.png")
 grid.raster(img)
 ```
 
-This will allow you to add layers to your project. You can also do this through the data browser on the left hand side of the screen. Now use this browser to navigate to your working directory. Load the following layers from the 'shapefiles' directory:
+This will allow you to add layers to your project. You can also do this through the data browser on the left hand side of the screen. Now use this browser to navigate to your working directory. Load the following layers from the `shapefiles` directory:
 
 - *rivers.shp*
 - *protected_areas.shp*
@@ -51,7 +51,7 @@ Now would be a good point to save the project. Go to [Project] > [Save] (or clic
 
 ### Attribute tables
 
-To see the attribute table associated with any layer, click on the layer name in the 'Layers' panel (bottom left), then go to [Layer] > [Open attribute table] (or press F6). For example, clicking on the 'rivers' layer will bring up the following table:
+To see the attribute table associated with any layer, click on the layer name in the `Layers` panel (bottom left), then go to [Layer] > [Open attribute table] (or press F6). For example, clicking on the 'rivers' layer will bring up the following table:
 
 ```{r fig.width=6.5, fig.height=4., echo=FALSE}
 img <- readPNG("images/attribute.png")
@@ -84,7 +84,7 @@ In the layer browser on the left of the main QGIS window, there should now be a 
 - Right click on it and select 'New Connection...'
 - Browse to the lab2 files, select the *landuse.sqlite* file and click 'Open'
 
-You should now see the *landuse.sqlite* layer appear in the dropdown menu. Click on this to add it to the map. 
+You should now see the *landuse.sqlite* layer appear in the drop-down menu. Click on this to add it to the map. 
 
 Now add the following layers to this project (note that you can bookmark any folder on your computer, by right clicking on it and selecting 'Add as a Favorite...')
 
@@ -192,7 +192,7 @@ Rather than label large polygon area, we can instead create a thematic map. Here
 
 Try doing the same thing for the `buildings` layer, using the attribute 'building' and a spectral color ramp. 
 
-Symbol colors can also be set using continuous values. Here, we'll add a new column to the `landuse` layer with the size of each polygon, then use this with a color ramp. Save your land use symbology (if you want to keep it) by going to the Style dropdown menu in the Symbology menu and selecting 'Save Style...'.
+Symbol colors can also be set using continuous values. Here, we'll add a new column to the `landuse` layer with the size of each polygon, then use this with a color ramp. Save your land use symbology (if you want to keep it) by going to the Style drop-down menu in the Symbology menu and selecting 'Save Style...'.
 
 Now, close the Layer Properties dialog, and open the attribute table for the `landuse` layer (F6).
 Enter edit mode by clicking on the pen icon in the top left, then click add 'new field' to add a column using this icon:
@@ -304,7 +304,7 @@ It's also worth noting that QGIS distinguishes between *features*, which are ind
 Rather than change the protected area layer directly, we'll make a copy of one of the features and modify it. 
 
 - Go to [Edit] > [Select] > [Select Features(s)]
-- Click on the southern protected area (this is Bontebok National Park)
+- Click on the southern protected area (this is [Bontebok National Park][bnpID])
 - Now click on [Edit] > [Copy Features] (or Ctrl-C), then [Edit] > [Paste Features As] > [Temporary Scratch Layer...]
 - Give this the name `bontebok_park`, and this should appear in the Layer panel. 
 
@@ -460,3 +460,5 @@ A similar process can be used to export layers as a SpatiaLite file, just by cha
 [tmID]: https://docs.qgis.org/testing/en/docs/training_manual/index.html
 [gpID]: https://www.geopackage.org
 [slID]: https://www.gaia-gis.it/gaia-sins/
+[swID]: https://en.wikipedia.org/wiki/Swellendam
+[bnpID]: https://www.sanparks.org/parks/bontebok/
