@@ -78,7 +78,7 @@ In the layer browser on the left of the main QGIS window, there should now be a 
 
 #### SpatiaLite 
 
-[SpatiaLite][spID] databases are an open source extension of SQLite including spatial SQL capability. These are designed to provide a lightweight but functional spatial DBMS. These databases can be added in the same way as we did for the GeoPackage. An alternative and quicker way is to:
+[SpatiaLite][slID] databases are an open source extension of SQLite including spatial SQL capability. These are designed to provide a lightweight but functional spatial DBMS. These databases can be added in the same way as we did for the GeoPackage. An alternative and quicker way is to:
 
 - Find the 'SpatiaLite' line in the browser window
 - Right click on it and select 'New Connection...'
@@ -86,7 +86,7 @@ In the layer browser on the left of the main QGIS window, there should now be a 
 
 You should now see the *landuse.sqlite* layer appear in the drop-down menu. Click on this to add it to the map. 
 
-Now add the following layers to this project (note that you can bookmark any folder on your computer, by right clicking on it and selecting 'Add as a Favorite...')
+Now add the following layers to this project (some are part of the GeoPackage, and some are shapefiles). Note that you can bookmark any folder on your computer, by right clicking on it and selecting 'Add as a Favorite...'.
 
 - `buildings`
 - `water`
@@ -142,7 +142,7 @@ Scale-based rendering allows QGIS to turn layers off or on depending on the scal
 - Enable scale-based rendering by clicking on the check box labeled 'Scale dependent visibility'
 - Change the Minimum value to 1:10000, and click [OK]
 
-Now test the effects of this by zooming in and out in your map, noting when the `buildings` layer disappears and reappears.
+Now test the effects of this by zooming in and out in your map, noting when the `buildings` layer disappears and reappears. Note that the current scale is shown in the toolbar at the bottom of the QGIS window. 
 
 ### Adding labels
 
@@ -155,7 +155,7 @@ Let's now add some labels to the map to identify different features. We'll add t
 
 The labels can be easily modified to make them a little more visible. Go back to the Labeling options ([Layer] > [Labeling]) and change the following:
 
-- Font to Helvetica
+- Font to Helvetica (This might not be available on the CHPC server; use Monospace instead)
 - Font size to 13.0
 
 Go to 'Buffering' options (this is a small blue box with 'abc' written on it), and check 'Draw text buffer' to add an contrast outline. You might also need to play around with the colors here. Try changing the font color to white and the buffer color to black:
@@ -202,9 +202,9 @@ img <- readPNG("images/newcolumn.png")
 grid.raster(img)
 ```
 
-In the new menu, add the name 'area' and set type to 'Decimal number (double)'. Click [OK] to create a new column filled with NULL values. Open the field calculator (the abacus icon) to set these values. In the new menu, check 'Update existing field' and choose 'AREA' from the drop down. In the list of available functions, click on 'Geometry' then double-click '$area' to set the expression to this. Click [OK], and the new column will be populated with the area values. 
+In the new menu, add the name 'area2' and set type to 'Decimal number (double)'. Click [OK] to create a new column filled with NULL values. Open the field calculator (the abacus icon) to set these values. In the new menu, check 'Update existing field' and choose 'AREA' from the drop down. In the list of available functions, click on 'Geometry' then double-click '$area' to set the expression to this. Click [OK], and the new column will be populated with the area values. 
 
-Now close the attribute table and open the Symbology menu. Choose 'Graduated' instead of 'Categorized'. Choose 'AREA' as the column. Set the color ramp by choosing a color for high values (e.g. green) and for low values (e.g. blue), and click [Classify].  By default, the intervals for the color classification are chosen using equal intervals. This doesn't work very well with these data, as there are a couple of large polygons that dominate the map. Go back to the Symbology menu, and set the 'mode' to 'Natural Breaks', which uses Jenk's method to choose intervals. Click [OK] and you should now see the polygons colored by size (I've removed the roads and protected areas here)
+Now close the attribute table and open the Symbology menu. Choose 'Graduated' instead of 'Categorized'. Choose 'area2' as the column. Set the color ramp by choosing a color for high values (e.g. green) and for low values (e.g. blue), and click [Classify].  By default, the intervals for the color classification are chosen using equal intervals. This doesn't work very well with these data, as there are a couple of large polygons that dominate the map. Go back to the Symbology menu, and set the 'mode' to 'Natural Breaks', which uses Jenk's method to choose intervals. Click [OK] and you should now see the polygons colored by size (I've removed the roads and protected areas here)
 
 ```{r fig.width=6.5, fig.height=4., echo=FALSE}
 img <- readPNG("images/map3.png")
@@ -297,12 +297,13 @@ Topology is a useful aspect of vector data layers, because it minimizes errors s
 
 > For example: if two features share a border, and you edit the border using topology, then you won’t need to edit first one feature, then another, and carefully line up the borders so that they match. Instead, you can edit their shared border and both features will change at the same time.
 
-It's also worth noting that QGIS distinguishes between *features*, which are individual polygons with their own attributes and *parts*, which are separate vectors making up a single feature. A single feature may contain multiple parts, but a single part only belongs to one feature. All examples here are based on polygon features, but the basic ideas will carry over to other vector data. 
+It's also worth noting that QGIS distinguishes between *features*, which are individual polygons with their own attributes and *parts*, which are separate vectors making up a single feature. A single feature may contain multiple parts, but a single part only belongs to one feature. All examples here are based on polygon features, but the basic ideas will carry over to other vector data. Here, we'll modify the `protected_areas` layer.
 
 ### Copying a feature
 
-Rather than change the protected area layer directly, we'll make a copy of one of the features and modify it. 
+Rather than change the `protected_areas` layer directly, we'll make a copy of one of the features and modify it. 
 
+- Seelct the layer
 - Go to [Edit] > [Select] > [Select Features(s)]
 - Click on the southern protected area (this is [Bontebok National Park][bnpID])
 - Now click on [Edit] > [Copy Features] (or Ctrl-C), then [Edit] > [Paste Features As] > [Temporary Scratch Layer...]
@@ -314,7 +315,7 @@ To make topological editing easier, it’s best to enable snapping, which will a
 
 - 'Enable snapping' on (the magnet)
 - 'Topological editing' on
-- Check 'Avoid intersection' for land use and protected areas
+- Check 'Avoid intersection' or 'Avoid overlap' for land use and protected areas (you might need to go to 'Advanced Configuration')
 
 Before proceeding make sure the new layer is selected and switch editing on by clicking on the pen icon or going to [Layer] > [Toggle Editing]. Note that as you move through these steps it is important to save often so that your work is stored. You will be prompted to if you switch editing off. 
 
