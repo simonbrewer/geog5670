@@ -31,9 +31,10 @@ The objectives for this lab are to get you to:
 The examples given here are modified from chapters 4 and 5 of the Open Source GIS book by Neteler and Mitasova (2008) and the `r.mapcalc` documentation. Files for today's lab can be found in the compressed file *lab5_data.zip*, so download this, move it to your grass directory and unzip it. 
  
 ## GRASS Location
-We will be using the North Carolina state plane location for the majority of today's lab. Login to the server, start GRASS and choose the `nc_spm_08_grass7` LOCATION, and either the 'user1' or start your own MAPSET. As before, we will use the terminal to run GRASS functions on the command line.
 
-Once this starts successfully, open a monitor to display the raster layers as we work through them:
+We will be using the North Carolina state plane location for the majority of today's lab. Start GRASS, either on your own computer or on the CHPC desktop. Once started, choose the `nc_spm_08_grass7` LOCATION, and either the 'user1' or start your own MAPSET. The lab will give instructions will be based on running GRASS functions on the command line, but will work through the GUI as well.
+
+Once GRASS has successfully started, open a monitor to display the raster layers as we work through them:
 
 ```
 d.mon start=wx0
@@ -716,21 +717,21 @@ g.remove -f type=rast name=calcmap1,elevdiff
 
 ### Creating a MASK with r.mapcalc
 
-The "if" function also provides a method to create a MASK layer that is much more flexible the `r.mask`. We simply need a layer where the two values used in the output are 1 and NULL (which we can obtain with the null() function). The following example keeps only the area between 60 and 100m and with land use categories 1 and 2. Any other cell with be assigned a NULL. 
+The "if" function also provides a method to create a `MASK` layer that is much more flexible the `r.mask`. We simply need a layer where the two values used in the output are 1 and NULL (which we can obtain with the null() function). The following example keeps only the area between 60 and 100m and with land use categories 1 and 2. Any other cell with be assigned a NULL. 
 
 ```
 d.erase
 r.mapcalc "MASK = if((elevation > 60 && elevation < 100) && (landuse96_28m==1 || landuse96_28m==2),1,null())"
 ```
 
-Now that the MASK is present, all operations will only take into account the non-MASKed cells:
+Now that the `MASK` is present, all operations will only take into account the non-`MASK` cells:
 
 ```
 d.rast elevation
 r.univar elevation
 ```	
 
-Remove the MASK
+Remove the `MASK`
 	
 ```
 g.remove -f type=rast name=MASK
