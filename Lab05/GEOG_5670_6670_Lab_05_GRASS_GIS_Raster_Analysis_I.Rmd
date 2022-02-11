@@ -1,0 +1,825 @@
+---
+title: 'GEOG 6960 Lab 05: GRASS GIS Raster Analysis I'
+author: | 
+  | Simon Brewer
+  | Geography Department
+  | University of Utah
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    fig_caption: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(png)
+library(grid)
+```
+
+## Introduction
+
+The objectives for this lab are to get you to:
+
+ 1. continue working with the command line in GRASS
+ 2. examine modules to import/export raster data with GRASS
+ 3. visualize and manage raster layers
+ 4. Perform some basic analyses with rasters
+ 5. Start using the map algebra function
+
+The examples given here are modified from chapters 4 and 5 of the Open Source GIS book by Neteler and Mitasova (2008) and the `r.mapcalc` documentation. Files for today's lab can be found in the compressed file *lab5_data.zip*, so download this, move it to your grass directory and unzip it. 
+ 
+## GRASS Location
+We will be using the North Carolina state plane location for the majority of today's lab. Login to the server, start GRASS and choose the `nc_spm_08_grass7` LOCATION, and either the 'user1' or start your own MAPSET. As before, we will use the terminal to run GRASS functions on the command line.
+
+Once this starts successfully, open a monitor to display the raster layers as we work through them:
+
+```
+d.mon start=wx0
+```
+
+Next, change directory so that you are in your `grassdata` folder (the exact path will be different on your computer). 
+
+- Windows: `cd C:\Users\simon\grassdata`
+- Mac OSX: `cd /Users/simon/grassdata`
+- Linux: `cd /home/simon/grassdata`
+
+To make loading the lab files easier, you can then change to the directory that should have been created when you unzipped the lab files (`cd lab5_data`).
+
+
+## Importing raster data
+
+### GDAL and Raster data I
+
+There are three main types of raster data that can be imported or exported with GRASS:
+
+- ASCII raster formats
+- Binary image formats
+- Binary raster formats
+
+The main tool to import raster data is `r.in.gdal`, which uses the GDAL libraries to read multiple data formats, including most common georeferenced formats and common image formats. To see a list of the support formats, use the `-l` flag:
+	
+```
+r.in.gdal -f
+```
+
+We'll start with a simple example: reading in an ERDAS imagine file: *lc96_cut.img*. Import the file as follows (note that we have to give the name of the input file, and the name of the raster layer to create in GRASS):
+
+```
+r.in.gdal input=lc96ras_cut.img output=lc96_28m
+```
+
+If Grass complains about not finding the file, check that the file is in your current directory (the one that you changed to in the terminal). You can also give the path (full or relative) to the file if that is easier, e.g.:
+
+```
+r.in.gdal input=./lab5_data/lc96ras_cut.img output=lc96_28m
+```
+
+Now set the region to this image, and display the raster layer:
+
+```
+g.region rast=lc96_28m
+d.rast lc96_28m
+```
+
+### GDAL and Raster data II
+
+The module `r.in.gdal` will do a projection check when importing data. If you have a file that is missing information about its coordinate system, then importation will fail during this check. To get around this, you can use the `-o` flag to override the projection check and force the data to match the currently assigned region. 
+
+We will use this to import an orthophoto in GeoTIFF format into the `nc_spm_08_grass7` location. 
+
+```
+r.in.gdal -o ortho2010_t792_subset_20cm.tif out=ortho_2010
+```
+
+Note that the file is automatically split into red/green/blue layers, with the color appended to the inputfile name. 
+
+```
+g.region rast=ortho_2010.red
+d.rast ortho_2010.red
+```
+	
+### ASCII raster files
+
+The file *elevation30m.asc* contains (another) elevation dataset for North Carolina, corresponding to the region defined by the landcover dataset, in a standard ascii format. Get the file from Canvas, and use 'less' to look at the layout of the file (this won't work under windows):
+
+```
+less elevation30m.asc
+```
+
+The module `r.in.ascii` can be used to import this type of data:
+
+```
+r.in.ascii elevation30m.asc out=myelev30m
+d.erase
+d.rast myelev30m
+```
+
+### Point cloud data
+
+Raster layers can be created directly from dense point data, e.g. lidar data (and we will look at several tools for dealing with lidar data in a later session). The module `r.in.xyz` imports point data, then turns this into a raster layer by binning the points within each cell. We will use the file *BE3720079200WC20020829m.txt*, which contains bare ground lidar data to demonstrate this. Start by setting the region to the associated air photo (note that we set the resolution to 10m to demonstrate the binning):
+	
+```
+g.region rast=ortho_2001_t792_1m res=10
+r.in.xyz BE3720079200WC20020829m.txt out=lidar_792_binmean method=mean
+d.rast lidar_792_binmean
+```
+
+The parameter `method` allows us to select other statistics, for example the number of points per bin:
+
+```
+r.in.xyz BE3720079200WC20020829m.txt out=lidar_792_binn method=n
+d.rast lidar_792_binn
+```
+
+### Using WMS servers
+
+Certain raster layers are available as direct downloads from WMS servers (Web Map Services). The module `r.in.wms` allows you to download tile for any available layer, and import them into your current location. We will use the service available from JPL at http://onearth.jpl.nasa.gov.
+
+Note that `r.in.wms` will automatically download the appropriate tiles for the defined region, re-project them if necessary and patch them together. First, we will get a list of the available layers on the server. Note that we pipe the output to a text file:
+
+```
+r.in.wms -l url=https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi > layers.xml
+less layers.xml
+```
+
+Look through the XML output for the different datasets available. The tag `\<Name>` gives the name that you will need to download a given layer. We will first get (and display) SRTM elevation data for a region covering south-west Wake county. This is a predefined region in the `nc_spm_08` LOCATION:
+
+```
+g.region swwake_30m res=15
+```
+
+Now download the data using `r.in.wms`. Note that we need to give:
+
+- the server address (mapserver)
+- the layer we are requesting (layers)
+- the output raster layer (output)
+
+```
+r.in.wms url=https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi output=nc_srtm layers=SRTM_Color_Index
+d.rast nc_srtm
+```
+
+We can also get a Landsat NDVI layer:
+
+```
+r.in.wms url=https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi output=nc_ndvi layers=Landsat_WELD_NDVI_Global_Annual 
+d.rast nc_ndvi
+```
+
+### The `overwrite` flag
+
+By default, GRASS will  not let you overwrite an existing layer, and any function that tries to generate a new layer with the same name as one that exists will fail. If you want to replace the existing layer, include the flag `--overwrite` in the function
+
+## Exporting raster layers
+
+The module `r.out.gdal` allows raster layers to be exported in any of the GDAL formats. For example, to export the NDVI data to HDF format:
+
+```
+r.out.gdal input=nc_ndvi format=HDF4Image output=nc_ndvi.hdf
+```
+
+Or to export as a JPEG image:
+
+```
+r.out.gdal input=nc_ndvi format=JPEG output=nc_ndvi.jpg
+```	
+
+Note that this will take account of the region settings, and crop the output accordingly. Try setting the region to a subset of the image and re-exporting:
+
+```
+g.region n=725600 s=723500 w=2095000 e=2097300
+r.out.gdal input=nc_ndvi format=JPEG output=nc_ndvi_sub.jpg
+```
+
+Note that using GDAL to export as images (JPEG, PNG, etc) will generate warning messages about the color table. To avoid these, GRASS has alternative export modules which use these drivers directly:
+
+```
+g.region rast=landuse96_28m
+r.out.png input=nc_ndvi format=JPEG output=nc_ndvi.png
+```
+
+## Viewing and managing raster maps
+
+### Display of raster layers
+
+Raster layers are displayed using the module `d.rast`, as we have already seen:
+
+```
+g.region rast=elevation
+d.rast elevation
+```
+
+This module also allows you to selectively show categories (here against a black background):
+
+```
+d.rast -n landuse96_28m values=1,2 bgcolor=black
+```
+
+And we can do the same with a range of values from a continuous layer (first we check the overall range of values):
+
+```
+r.info -r elevation
+d.rast elevation values=100-140
+```
+
+An alternative function plots the layer together with a scale bar. 
+
+```
+d.rast.leg elevation
+```
+
+
+### Color tables
+Raster layers are given a standard rainbow color palette associated with the range of values when imported. This can easily be changed using `r.colors`. To get a list of the available color palettes use the `-l` flag:
+
+```
+r.colors -l
+```
+
+And to change the palette:
+
+```
+r.colors elevation col=sepia
+d.rast elevation
+```
+
+This function can also be used interactively, by setting the `col` parameter to rules. This allows you to define your own palette by using value/color pairs. Rule the following command:
+
+```
+r.colors elevation rules=-
+```
+
+Now enter the following value/color pairs at the prompt (don't type the `>`):
+
+```
+> 50 aqua
+> 75 green
+> 100 yellow
+> 125 brown
+> 160 orange
+> end
+```
+
+The `end` finishes the interactive session. Now redraw the elevation layer:
+	
+```
+d.erase
+d.rast elevation
+```
+
+You can also add these value/color pairs to a text file, and read them in as follows (assuming the file name is *mycolors.txt*):
+
+```
+r.colors elevation rules=mycolors.txt
+```
+
+Note that you can also use RGB triplets instead of color names, and percentages for the intervals. This time, we'll enter the values using a text file. Using any text editor, open a new text file and enter the following values:
+
+```
+0% 035 139 069
+33% 116 196 118 
+66% 186 228 179
+100% 237 248 233
+```
+
+```
+r.colors elevation rules=mycolors.txt
+```
+
+And redraw the layer. We can add a simple legend with `d.legend`
+
+```
+d.legend elevation at=25,75,5,10
+```
+
+This shows the colorbar for the 'elevation' map, positioned between 25 and 75% of the y-axis and between 5\% and 10\% from the left.
+
+Finally reset the elevation layer palette:
+
+```
+r.colors elevation col=elevation
+```
+
+## Raster layer metadata
+
+### Querying metadata
+Information describing the source, accuracy, units, producer, etc of a raster layer is stored in a set of metadata files. A number of modules exist to look at their contents: `r.info` gives basic information; `r.describe` gives the range of values or categories; `r.cats` gives categories with their labels:
+
+```
+r.info landuse96_28m
+r.describe landuse96_28m
+r.category landuse96_28m
+```
+
+### Modifying metadata
+The module `r.support` allows the information associated with a raster layer to be modified. We'll use this to modify a copy of the 'elevation' layer. First make a copy using `g.copy`, and look at the metadata:
+
+```
+g.copy rast=elevation,myelevation
+r.info myelevation
+```	
+
+Now modify the header, the vertical datum and the units:
+
+```
+r.support myelevation history="Downloaded from USGS, spm projection" vdatum=NAVD88 units=meter
+r.info myelevation
+```
+	
+`r.support` also has an interactive mode, which takes you through a series of questions to change or add information.
+
+Temporal information can be added to raster layers (particularly imagery), to register the time and date that the values represent. Here, we add the date and time to a LANDSAT layer for North Carolina. Note that as this layer in not in our current mapset, we have to specify where it can be found (`PERMANENT`):
+
+```
+r.timestamp lsat7_2002_10@PERMANENT date="24 May 2002 09:30:00 -0000"
+```
+
+The date information we give includes: 
+
+- Date as Day/Month/Year
+- Time as Hr:Min:Sec
+- Time zone as offset from GMT in hours
+	
+## Querying raster maps
+
+Raster layers can be queried interactively using `d.what.rast` and non-interactively using `r.what`. Both of these can take multiple raster layers as input, allowing you to get values from several maps at the same location:
+
+```
+g.region rast=landuse96_28m
+d.erase
+d.rast landuse96_28m
+d.what.rast map=landuse96_28m
+```
+
+Use the left mouse button to query the map, and the right one to stop. 	
+	
+```
+d.what.rast map=landuse96_28m,elevation
+```
+
+`r.what` allows you to get values for a specific location:
+
+```
+r.what -f landuse96_28m coordinates=638650,220610
+```
+
+Alternatively, you can use a file and the Unix redirect functions, to get values for a set of locations. The file *schools.txt* has the locations for schools in the region:
+
+```
+r.what -f landuse96_28m < schools.txt
+```
+
+We can also redirect the output, and save the results in a file. We use the 'fs' parameter to change the character used to separate fields to make a csv file:
+
+```
+r.what -f landuse96_28m,elevation separator=, < schools.txt > schools_landuse.csv
+less schools_landuse.csv
+```
+
+### Profiles
+Profiles can be drawn interactively and the values extracted using the mouse and the `d.profile` command. Non-interactive profiles can be made between two points using the `r.profile` module:
+
+```
+g.region rast=elevation
+r.profile elevation res=200 coordinates=641373,221962,641272,219354
+```
+
+Or, again, by using a file with a set of locations. The file *road_profile_xy.txt* contains the coordinates of a set of segments of a road: 
+	
+```
+r.profile elevation file=road_profile_xy.txt
+```
+
+## Raster map statistics
+
+To calculate basic univariate statistics for a raster layer containing a continuous variable (the `-e` flag includes the median and 90\%tile):
+
+```
+g.region rast=elevation
+r.univar -e elevation
+```
+
+For categorical layers, `r.report` can be used to get areal statistics:
+
+```
+r.report landuse96_28m units=c,h,p
+```
+
+Which gives the area of each category in cell count, hectares and percentage of region (other options include miles or kilometers: see `r.report --help` for details). 
+
+Note that you can include multiple layers to get the area  occupied by combinations of categories:
+
+```
+r.report landuse96_28m,zipcodes units=c
+```
+
+The module `r.stats` provides similar information, but in a format that is more easily exportable. The flag '-cl' exports the cell counts and the labels. 
+
+```
+r.stats -cl landuse96_28m,zipcodes separator=, > zipcodes_landuse.csv
+less zipcodes_landuse.csv
+```	
+
+Press 'Q' to exit the `less` viewer.
+	
+## Creating new raster layers
+
+### Buffers and circles
+
+The module `r.circle` creates a set of concentric circles around a point, allowing analysis of the relationship between distance from a point and landscape characteristics. For example, to create a raster surface with the distance from the school in the center of the current region:
+
+```
+r.circle out=school_circle coor=637768,222962 min=0 max=1000
+d.erase
+d.rast school_circle
+d.vect schools_wake
+```
+
+Buffers around raster features can be made using the module `r.buffer`. The following code creates three buffer zones around the major road network of the region. Note that this is a raster representation of the roads - we'll look at converting between raster and vector data later. 
+
+```
+r.buffer roadsmajor out=roads_buffers dist=250,500,2500
+d.rast roads_buffers
+```
+
+### Random surfaces
+
+Surfaces can be easily created, with values randomly assigned between 1 and 255. Note that we lower the resolution here to 100m, in order to more clearly see the output:
+
+```
+g.region res=100
+r.random.surface out=rand_surf_100m
+d.rast rand_surf_100m
+```	
+
+The default behavior of this module has a spatial dependence on zero (effectively white noise). We can include spatial dependence with the `distance` parameter, which allows the simulation of random spatial structures of a given size. Note the `--overwrite` flag to allow the previous raster layer to be overwritten:
+
+```
+r.random.surface out=rand_surf_100m distance=1000 --overwrite
+d.rast rand_surf_100m
+```
+
+Try increasing the distance further.
+
+The module `r.surf.gauss` allows random simulation of values that are normally distributed with a given mean and standard deviation:
+
+```
+r.surf.gauss out=rand_surf_100m mean=100 sigma=10 --overwrite
+d.rast rand_surf_100m
+r.univar rand_surf_100m
+```
+
+Finally, a fractal function can be used to generate a random surface that resembles natural topography. This has a parameter 'dimension', which gives the fractal dimension (D), somewhere between 2 and 3:
+
+```
+g.region res=10
+r.surf.fractal out=rand_surf_100m dimension=2.1 --overwrite
+r.colors rand_surf_100m col=srtm
+d.rast rand_surf_100m
+```
+
+### Reclassification
+
+Categorical raster layers can be reclassed to form a new layer with aggregate categories from the first. This requires a ruleset, which defines which of the old categories goes into which of the new categories. The easiest way to do this is to write rules to a text file, then use this with the module `r.reclass`. By storing these in a file, it is easy to make modifications and redo the classification if mistakes are made (and provides a record of the changes). 
+
+We will use this to reclassify the raster layer `zipcodes` into towns. Using a text editor, make a file called *zipreclass.txt* containing the following rule set and save it to your grass directory. Note the syntax for each line: `oldcat(s) = newcat label`:
+
+```
+27511 27513 27518 = 1 Cary
+27529 = 2 Garnier
+27539 = 3 Apex
+27601 27604 27605 27608 = 4 Raleigh-City
+27603 27606 27610 = 5 Raleigh-South
+27607 = 6 Raleigh-West
+```
+
+Now run `r.reclass` with this file as input:
+
+```
+r.reclass input=zipcodes output=mytowns rules=zipreclass.txt
+d.rast zipcodes
+```
+
+Now open a second monitor and display the updated layer in this. 
+
+```
+d.mon start=wx1
+d.rast mytowns
+```
+
+For continuous data, we can use the same process, except that we need to give a range of values for each new category. We will use this change a layer with aspect data into the 4 main orientations (N,S,W,E). Make a text file called *aspectreclass.txt*, and add the following rules:
+
+```
+0 thru 45 = 4 East
+45 thru 135 = 1 North
+135 thru 225 = 2 West
+225 thru 315 = 3 South
+315 thru 360 = 4 East
+```
+
+And use it to reclassify the map:
+
+```
+r.reclass input=aspect output=orientation rules=aspectreclass.txt
+d.mon select=wx0
+d.rast aspect
+d.mon select=wx1
+d.rast orientation
+```	
+
+The `select` parameter in `d.mon` allows you to choose the monitor for output.
+	
+### Rescaling
+
+Another form of reclassification comes from rescaling a continuous map into a set of categories. Two modules exist for this: `r.rescale` which does linear rescaling, and `r.rescale.eq` which rescales using the histogram of total values to give approximately the same number of cells in each category. Compare the two results from rescaling a map of slope values into six categories:
+
+```
+d.rast slope
+r.rescale slope from=0,45 to=1,6 out=slope6
+d.rast slope6
+r.rescale.eq slope from=0,45 to=1,6 out=slope6eq
+d.rast slope6eq
+```
+
+### Masking data
+
+GRASS allows you to define a layer 'MASK', which will be used to mask out certain parts of a region from any analysis. This layer is binary, with 1 indicating cells that should be used, and NULL values indicating cells that should be ignored. `r.mask` allows you generate this layer from a categorical raster layer. So only see values in the town of Raleigh, we can use the 'towns' layer generated earlier:
+
+```
+r.mask towns maskcat=5
+d.rast elevation
+```
+
+The MASK layer can be removed as follows:
+
+```
+r.mask -r MASK
+d.erase
+d.rast elevation
+```
+
+Map algebra tools allows a more flexible approach to making MASK layers, and we will look at these in the next section.
+
+## Raster map algebra
+
+Raster map algebra is a powerful and flexible tools for spatial analysis of raster layers. While GRASS has a number of specific modules for analyses (and we'll look at some of these in the next session), the main tool is `r.mapcalc`. The general syntax for this command is (don't type this):
+
+```
+r.mapcalc "newmap = expression(map1, map2, ...)"
+```
+
+The expressions include the usual set of math, trigonometry and logical functions, as well as the usual set of operators (a non-exhaustive list is given in the appendix to this lab). Note that any calculation using `r.mapcalc` will take into account the region settings (i.e. will ignore data outside the current region) and the MASK, if one is present. 
+
+### Output type
+
+The output from `r.mapcalc` analyses will be either as integer or floating point formats. In general, the output will *only* be integer if all the inputs are also integers. The 
+
+```
+r.mapcalc "img_int = ortho_2001_t792_1m + 123"
+r.info -g img_int
+```
+
+Note that the data type is `CELL` - this is an integer raster. To
+
+```
+r.mapcalc "img_fp = ortho_2001_t792_1m + 123.0"
+r.info -t img_fp
+```
+	
+The `-g` flag prints some summary metadata about a layer. This time, the data type is `DCELL`, a raster containing double precision floating point numbers.
+
+### Calculate NDVI
+
+To illustrate the importance of the correct units, we will calculate NDVI values from two LANDSAT layers: `lsat7_2002_40` (NIR) and `lsat7_2002_30` (VIS). 
+
+```
+r.mapcalc "ndvi = (lsat7_2002_40 - lsat7_2002_30)/(lsat7_2002_40 + lsat7_2002_30)"
+r.colors map=ndvi color=ndvi
+d.rast ndvi
+r.info ndvi
+```
+
+As the original layers are integers, the output is also an integer, which results in all the values being rounded to zero. To force this to output as floating point numbers, we can use the 'float()' function to convert the product of subtraction/addition to floating point:
+
+```
+r.mapcalc "ndvi = float(lsat7_2002_40 - lsat7_2002_30)/float(lsat7_2002_40 + lsat7_2002_30)"
+r.colors map=ndvi color=ndvi
+d.rast ndvi
+r.info ndvi
+```
+
+### Simple calculations
+
+To take the difference between two surfaces:
+	
+```
+r.mapcalc "elevdiff = elev_srtm_30m - elev_ned_30m"
+d.rast elevdiff
+```
+
+Change the color palette to emphasize the differences
+
+```
+r.colors elevdiff col=rules
+-150 blue
+-10 aqua
+0 white
+10 orange
+150 red
+end
+d.rast elevdiff
+```
+
+This shows that the NED elevation data set is lower than the SRTM data over most of the area. Water bodies show up as clearly different as well, with the NED data capturing the surface water. 
+
+### Using "if" conditions
+
+The "if" function is useful for conditional selection of the values in raster layers. Some simple examples follow using the elevation layer and the layer `landclass96`:
+
+```
+g.region landclass96
+d.rast landclass96
+r.category landclass96
+```
+
+- if map is equal to a, then b, else c
+
+```
+r.mapcalc "calcmap1 = if(landclass96==1,1,2)"
+d.rast calcmap1
+```
+	
+- if map is not equal to a, then b, else c
+
+```
+r.mapcalc "calcmap1 = if(landclass96!=1,1,2)"
+d.rast calcmap1
+```
+
+- if map is equal to a OR b, then c, else d
+
+```
+r.mapcalc --overwrite "calcmap1 = if(landclass96==1 || landclass==2,1,2)"
+d.rast calcmap1
+```
+
+- if map is greater than a, then b, else c
+
+```
+r.mapcalc --overwrite "calcmap1 = if(elevation>100,1,2)"
+d.rast calcmap1
+```
+
+- if map is greater than a AND less than b, then c, else d
+
+```
+r.mapcalc --overwrite "calcmap1 = if(elevation>100&&elevation<120,1,2)"
+d.rast calcmap1
+```
+
+- if map1 is greater than a AND map2 equal to b, then c, else d
+
+```
+r.mapcalc --overwrite "calcmap1 = if(elevation>100&&landclass96==1,1,2)"
+d.rast calcmap1
+```
+
+We are not restricted to using constants in the 'then' and 'else' parts of these function - we can use the values from a layer instead
+
+- if map is less than or equal to a, then map, else 0
+
+```
+r.mapcalc --overwrite "calcmap1 = if(landclass96<=2,landclass96,0)"
+d.rast calcmap1
+```
+
+- if map is greater than a, then 0, else map*
+
+```
+r.mapcalc --overwrite "calcmap1 = if(elevation>100,0,elevation)"
+d.rast calcmap1
+```
+
+Let's clean up some of these files. The function `g.remove` will delete layers from the mapset. You can add multiple layers here, but only one type of map at a time. To delete the `calcmap1` and `elevdiff` maps, the syntax is:
+
+```
+g.remove type=rast name=calcmap1,elevdiff
+```
+
+Note that this does not delete the files, but simply gives you the list of actions that would be taken. If this looks ok to you, add the `-f` flag to force removal:
+
+```
+g.remove -f type=rast name=calcmap1,elevdiff
+```
+
+### Creating a MASK with r.mapcalc
+
+The "if" function also provides a method to create a MASK layer that is much more flexible the `r.mask`. We simply need a layer where the two values used in the output are 1 and NULL (which we can obtain with the null() function). The following example keeps only the area between 60 and 100m and with land use categories 1 and 2. Any other cell with be assigned a NULL. 
+
+```
+d.erase
+r.mapcalc "MASK = if((elevation > 60 && elevation < 100) && (landuse96_28m==1 || landuse96_28m==2),1,null())"
+```
+
+Now that the MASK is present, all operations will only take into account the non-MASKed cells:
+
+```
+d.rast elevation
+r.univar elevation
+```	
+
+Remove the MASK
+	
+```
+g.remove -f type=rast name=MASK
+d.rast elevation
+r.univar elevation	
+```
+
+### Graph functions
+
+The "if" function is useful for transforming layers into discrete selections (i.e. binary or into categories). For fuzzy mapping, we instead want to transform a continuous variable into a probability (the membership function). The `graph` function allows us to do this with `r.mapcalc`. This function uses a set of x,y points, representing the membership function to do the conversion between the original layer (x-value) and the new layer (y-value, usually probability).
+
+We will use the example shown in class, where we transform slope values into membership of one of three fuzzy classes defined in this figure:
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/slopeprob.png")
+grid.raster(img)
+```
+
+Start by displaying and examining the "slope" layer:
+
+```
+d.region rast=slope
+d.rast slope
+r.univar slope
+```
+
+Now convert the slope into membership of the first class (black line):
+
+```
+r.mapcalc "slopeprob1 = graph(slope,0.,0., 2.,0.1, 8.,0.3, 15.,0.8, 90.0,1.)"
+r.colors slopeprob1 col=byr
+d.rast slopeprob1
+```
+
+Note the syntax of this command: `graph(map,x1,y1,x2,y2,…,xn,yn)`
+
+## Exit and clean up
+
+Close any monitors you have open and exit GRASS. 
+
+## Appendix: `r.mapcalc` operators
+
+### Relative translation:
+
+`x[m,n]` gives the value of the cell in the map `x`, shifted by `m` rows and `n` columns from the reference cell.
+
+### Arithmetic operators:
+
+`*`: multiplication
+`/`: division
+`%`: modulus
+`+`: addition
+`-`: subtraction
+
+### Comparison
+
+`==`: equal to 
+`!=`: not equal to
+`<`: less than
+`<=`: less than or equal to 
+`>`: greater than
+`>=`: greater then or equal to
+
+### Logical:
+
+`&&`: AND
+`||`: OR
+
+### Mapcalc functions:
+
+- `abs(x)`: absolute value of $x$
+- `exp(x)`: $e^x$
+- `exp(x,y)`: $x^y$
+- `float(x)`: converts x to single-precision floating point
+- `int(x)`: converts floating points to integers
+- `log(x)`: natural log of $x$
+- `log(x,y)`: log of $x$ base $y$
+- `sqrt(x)`: square root of x
+- `min(x,y,...)`: minimum of x, y, ...
+- `max(x,y,...)`: maximum of x, y, ...
+- `round(x)`: round x to nearest integer
+- `if(x)`: 1 if x not zero, 0 otherwise
+- `if(x,y)`: y if x not zero, 0 otherwise
+- `if(x,y,z)`: y if x not zero, z otherwise
+- `if(x,y,z,a)`: y if x > 0, z if x is zero, a if x < 0
+
+
+
+[1]: http://trac.osgeo.org/proj/wiki/GenParms
+[2]: http://www.epsg-registry.org
+[3]: http://www.gdal.org  
+[4]: http://www.gdal.org/formats_list.html
