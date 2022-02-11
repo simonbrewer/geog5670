@@ -1,0 +1,609 @@
+---
+title: 'GEOG 5670/6670 Lab 04: Getting started with GRASS GIS'
+author: | 
+  | Simon Brewer
+  | Geography Department
+  | University of Utah
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    fig_caption: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(png)
+library(grid)
+```
+
+## Introduction
+
+In this lab we will start working with GRASS GIS. We'll start with some brief examples using using one of the available graphical user interfaces (wxPython), then switch to the command line later on. While all the functions are available through the interface, the command line is where the true power of GRASS comes into its own. GRASS is designed to allow all commands to be tied together in scripts for large bulk processing jobs. Popular scripting languages include the Bourne Shell (BASH) and Python and we will explore these later. 
+
+The main objectives are:
+
+- Introduce the GRASS GIS interface
+- Work with the command line in GRASS
+- Look at methods to set up GRASS LOCATIONS
+- Use different tools for projection transformations both within and outside of the GRASS environment
+
+The examples given here are modified from the quick wxGUI tutorial from the [OSGeo Wiki][5] and from chapter 3 of the Open Source GIS book by Neteler and Mitasova (2008). 
+
+### GRASS working directory
+
+GRASS is a little different from ARC or QGIS as it expects to use a database directory to store all files that are used and created. We'll use this to store data files as well. I would recommend making a directory called 'grassdata', either in your Documents folder or in your home folder (basically somewhere easy to find). You can always change this later on. 
+ 
+### Datasets
+
+We will be using a couple of datasets in today's labs. The first of these *nc_spm_08_grass7.zip* contains a large set of data for North Carolina in State Plane projection (we will be using these datasets for several examples over the course of the semester). The other datasets are *tl_2008_49_tract00.zip*, census tract data for Utah, and *p016r035_7t20020524_z17_nn30_nc_spm_wake.tif.zip*, a LANDSAT image for North Carolina. Download these files from Canvas, and copy them to the GRASS database directory that you just made. Unzip any compressed files. 
+
+## Installing and starting GRASS GIS
+
+Installation instructions for different operating systems can be found on the [installation guide][7].
+
+If you don't want to install GRASS on your own computer, then you can use the CHPC OnDemand service for this class. Simply go to:
+
+https://ondemand-class.chpc.utah.edu/pun/sys/dashboard/batch_connect/sys/GEOG5670_desktop/
+
+And start a new instance of a GEOG5670 desktop. You can start GRASS by going to the [Applications] menu, then [Education], and click on GRASS GIS 7. Alternatively, open a new terminal and type either:
+
+```
+grass
+```
+
+or 
+
+```
+grass78
+```
+
+### Windows
+
+The easiest way to install GRASS under windows is through the OSGeo4W installer. You may have already installed GRASS with QGIS earlier in the semester. If you haven't done so (or if you want to check), open the OSGeo4W installer, and click on 'Advanced Install'. Accept all the default options and let it download the list of available programs. When the 'Select Packages' window appears (see below), click on 'Desktop' to see the available desktop apps. 
+
+
+If GRASS is installed as a stand-alone application, you should see a version number under the 'Current' column. If your version is at least 7.8, then you can quit the installer without doing anything else. If no number is shown, click on the little circle icon to go through the available options. Click this until it shows a version number 7.8 or above, then click 'Next'. The next screen will give a list of requested installs, plus any dependencies that are required. Click 'Next' again to begin the installation. When it is complete, start GRASS by going to the Start menu, and finding the GRASS icon.
+
+### Mac OSX
+
+On Mac, you can get a 'bundled' installer provided by Michael Barton [here][6]. Download and unzip the *.dmg installation package, then drag the GRASS app to your Applications folder (it will not work properly in any other folder).
+
+Now start GRASS by going to the Applications menu, and finding the GRASS icon.
+
+Alternatively, you can install this using homebrew from the osgeo4mac tap (you need to have homebrew installed). Open a terminal and run:
+
+```
+brew tap osgeo/osgeo4mac
+brew install osgeo-grass
+```
+
+If you have installed GRASS this way, you will need to start GRASS from a terminal. To run, simply type:
+
+```
+grass78
+```
+
+## Selecting location and mapset
+
+When you start GRASS, the first thing that you should see is the project selection window, which allows you to choose the project *location* and the *mapset*. As a reminder:
+
+- The location is a single geographic region (e.g. London, Utah, the Mississippi watershed, etc)
+- The mapset is the set of files in a single location used by one worker. You can have multiple mapsets in a single location to support concurrent use. You can only write to your mapset, but may be able to read from other mapsets
+- The 'PERMANENT' mapset normally contains a set of base layers that can be used by all workers
+
+You should see something like this:
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/grass_startup.png")
+grid.raster(img)
+```
+
+We'll start by using the North Carolina dataset. Make sure that the selected GRASS GIS database is set to the folder you created earlier, the 'Location' is set to `nc_spm_08_grass7`, and the 'Mapset' is set to 'user1' (or add your own name to create your own mapset). Click 'Start GRASS session' when you are done to start GRASS proper. 
+
+Once you have done this, the wxGUI interface should launch, with two windows. The Layer Manager:
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/maclayermanager.png")
+grid.raster(img)
+```
+
+And a Display Window
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/macdisplay1.png")
+grid.raster(img)
+```
+
+In your terminal window, you'll notice that the prompt has changed, and it will have displayed that GRASS has been started (if you did not start GRASS from a terminal, one will open). We will increasingly use the terminal to run GRASS commands, but for this first section, we will stick to the GUI.  
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/grasswin3.png")
+grid.raster(img)
+```
+
+## Raster modules
+
+### Displaying maps
+
+Once everything has started, use the Layer Manager to add a raster map layer such as `elevation` from the PERMANENT mapset. To do this click on the checkerboard toolbar button with a "+" on it and then select the map name from the pull-down list which appears, and click [Ok].
+
+In a similar fashion add the `roadsmajor` vector layer from the PERMANENT mapset by clicking on the toolbar button with a "+" and a bent poly-line which looks a bit like a "V".
+
+Over in the Map Display window toolbar click on the eyeball button to render the view. You should now see the maps displayed.
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/macdisplay2.png")
+grid.raster(img)
+```
+
+### Plot an elevation profile
+
+Back in the GIS Layer Manager window click on the `elevation` raster map name to select it. Then in the Map Display window, to the right of the zooming buttons on the Map Display toolbar is an icon with a line graph and checkerboard on it. Click on that and select Profile Surface Map. If it isn't automatically listed again pick the `elevation` map as the raster layer and press [Ok]. The second button in from the left allows you to set out the profile line, click it then mark out a few points on the Map Display canvas. When done go back to the Profile window and click on the eyeball button to create the plot. Click on the I/O button of the far right to close the profile window.
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/profile1.png")
+grid.raster(img)
+```
+
+### Create a random surface
+
+Now let's create a new map. From the [Raster] menu, select [Generate surfaces]>[Fractal surface] from the menu (near the bottom). Give your new map a name; adjust any options you like in the Options tab (the defaults are fine); and click [Run].
+
+Now add your new raster layer to the layer list as you did before with the elevation raster map, except this time it will be in your own working mapset (not PERMANENT). You might un-tick the elevation layer check-box now so that the two don't draw over the top of each other. Click on the eyeball to view your new map. If it is not already checked, you can tick the 'Render' box in the bottom right of the Map Display window to automatically update the displayed map when changes are made. If you are working with large spatial datasets, it's often a good idea to turn this off to prevent GRASS rendering the map every time something changes.
+
+### Adjust colors
+
+The colors might not be as you'd like so let's change them. In the [Raster] menu select [Manage colors]>[Color Tables]. In the "Define" tab click on the pull-down list for the "Name of color table" option, and pick one from the list. "srtm_plus" or "terrain" are good choices. Once done click the [Run] button and close the r.colors dialog window.
+
+Changing the palette affects the map's metadata. If the new colors do not display, then you will have to fully flush the display cache. So click on the little refresh button in the top left of the display window and you should see your map with its new colors.
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/fractal1.png")
+grid.raster(img)
+```
+
+### Create a shaded relief map
+
+Next we'll create a shaded relief map of the elevation layer we saw earlier. In the [Raster] menu select [Terrain analysis]>[Shaded relief] (Terrain analysis is about half way down), and the module control dialog will appear. Select `elevation` as the input map and call the output `elevation_shade`. You can set the height of the sun and the azimuth from the 'Sun position' tab. Click [Run]. By default, this will add the new layer to the display (there is an option on the menu to turn this off if necessary). 
+
+As in the previous lab, we can drape this over an elevation (or other) raster map to show the topography. GRASS can also make a fully shaded layer by combining these into a single new layer which can then be used as a basemap. Go to the [Raster] menu then select [Terrain analysis]>[Apply shade to raster]. In the next menu, select:
+
+- Name of shaded relief...: `elevation_shade`
+- Name of raster to drape...: `elevation`
+- Name of shaded raster map: `elevation_shade2`
+
+### Adding map elements
+
+Now uncheck all layers from the display except the new shaded relief layer `elevation_shade2`. To add a graticule layer, click on the 'Add various overlays' button in the GIS Layer Manager window (in case of doubt, hover your mouse cursor over the button - if it says 'Add various overlays' you're in the right place). Put 00:02:30 for the size of grid (2.5 arc minutes; format is D:M:S), then in the 'Draw' tab tick 'Draw geographic grid'. In the 'Colors' tab, set both the grid and text color to black. Now press [Run] and re-render. The default colors are not great with this background map. To change these (or other options), double click on the 'grid' layer in the layer manager to get the options back. To set colors, click on the button showing the current color choice to bring up a color menu (color wheel, spectrum, etc.). 
+
+To add a scalebar go to the Map Display window and press the [Add Overlay] button to the right of where you selected the Profile tool earlier and select 'Add scalebar'. There are various options here to set the length or style of scale bar. Check the box to 'Display north arrow', then [Ok]. A scalebar will appear in the top left Drag it down to the bottom right. If you want to change anything, double-click on the scalebar to reopen the menu. If you right click, this will bring up an option to delete it. 
+
+From the same toolbar menu, select 'Add raster legend' and in the menu set the raster map name to `elevation`. In the 'Background' tab, check 'Show background', and click [Ok]. You can click and drag the legend to any part of the map. If you want to resize it, right click on the legend, select 'Resize legend', and the cursor will change to a crosshair. Use this to create a rectangle to outline the legend size and placement and a new legend will be created.
+
+Finally, the default fonts are a bit bare. To change these for the legend, double-click on it to reopen the menu, go to the 'Font settings' tab, and choose a font by clicking on the 'Select font' button. Note that you can set colors are encoding here as well, if necessary. Do the same for the scalebar. 
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/basinshadeextra.png")
+grid.raster(img)
+```
+
+### Watersheds and streams
+
+We'll now carry out a simple GIS analysis producing watersheds from the elevation data (collections of pixels that drain together). In the [Raster] menu choose [Hydrologic modeling]>[Watershed analysis]. From the 'Inputs' tab, set the 'input elevation' to `elevation`, and the minimum size of basin to 10000 (this dictates basin size and stream complexity). In the outputs, set 'output basins map' to `elev_basins` and 'output stream segments' to `elev_streams`. Note that you can create other layers, including drainage direction and watershed size. Don't worry about the other options - we'll look at them in more detail later. Click [Run].
+
+Back in the Layer Manager window add those two new raster maps to the layer list. Now we will display the basins over the shaded elevation data. Make sure both `elev_basins` and `elevation._shade2` are in the layer list, and every other layer is unchecked. Make sure that the basin layer is above the elevation layer (you can click and drag layers upwards or downwards). To display both, change the opacity of the basins layer. Right click on the elev.basins raster map layer name and select "Change opacity level". Set it to about 50% then re-render the Map Display.
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/basinshade.png")
+grid.raster(img)
+```
+
+## Vector modules
+
+We'll explore the raster capabilities of GRASS more extensively in subsequent labs. For now, we'll just explore some vector functions. GRASS maintains and uses a fully topological vector system which allows all sorts of powerful analyses.
+
+### Creating vectors from rasters
+
+Continuing with the watershed basins created above, next we'll convert them into vector polygons. In the [Raster] menu select [Map type conversions]>[Raster to vector]. In the dialog that opens, make sure that `elev_basins` is selected for the input map, give a name for the output map like `basins_areas` (vector map names must be SQL compliant), and change feature type to `area`. In the 'Attributes' tab tick the box to use raster values as category numbers, since these will match the values in our stream segment raster map created earlier. Then click on [Run]. Once the new vector map is displayed, you can change the way in which it is displayed by double clicking on it in the Layer Manager to open the vector display menu. A simple thing to do here is to check the box 'Random colors according to category number...'.
+
+Now let's do the same for the streams. If you show only the stream layer in the display menu, then you won't see much, as each stream is only 1 pixel wide. Use the same menu as before, but make sure to set the feature type to 'line' (call the output `streams_lines`). 
+
+### Adding attributes
+
+We can add attributes to the basin areas, for example, the average elevation in each basin. In the Vector menu select 'Update attributes>Update area attributes from raster'. Use `basin_areas` as the vector polygon map, the `elevation` raster to calculate the statistics from, make the column prefix `elev`. On the 'Optional' tab, select average and stddev as methods to calculate (you can easily add others here). Click [Run] then close the dialog when it is finished. You can query the values in the 'Map Display' window using the fourth icon from the left and after verifying that the `basin_areas` map is selected in the 'Layer List'. Then click anywhere on the map to get the attributes for the point. Selecting multiple layers will bring up the values for all layers at that point. 
+
+Once attributes have been associated, you can use them to color the polygons. In the [Vector] menu select [Manage colors]>[Color tables]. Select `basin_areas` for the input vector map, the 'elev_mean' attribute column for the column containing the numeric range, and in the 'Colors' tab have it copy the colors from the 'elevation' raster map. Click [Run]. After running that right-click on the basin_areas map in the Layer List and select 'Properties'. In the 'Colors' tab tick the box for getting colors from the map table column. Once you click [Apply] you should see the colors change in the 'Map Display' window.
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/basinvect.png")
+grid.raster(img)
+```
+
+### Simple SQL query
+
+Now let's look at the attribute table and SQL builder in more detail. In the 'Layer Manager' click the table icon, it's second from the left on the bottom row. This will open a view of the attached database table. For now we'll just do a simple database query to find watershed basins at lower elevations. 
+
+For this to work, make sure the `basins_areas` layer is selected in the layer manager, but NOT displayed (i.e. the checkbox is not ticked). At the bottom of the attribute table is the SQL query builder. Select the 'Simple' tab, then where it says `SELECT * FROM basin_areas WHERE` pick 'elev_average' from the pull down list for the average elevation, in the next list select `<=` then in the text box to its right enter `100` and click [Apply]. You'll notice the number of loaded records in the information bar along the bottom of the window has shrunk, and that all of the rows with higher elevations are now gone from the displayed table. You should also see that only a subset of the basins are now shown in the display. We can create a new layer from this query. First make sure the subset of features is highlit in the attribute table, then right-click and choose 'Extract selected features'. Save this new layer as `basins_low_elev`. 
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/basinselect.png")
+grid.raster(img)
+```
+
+
+### 3D visualization
+
+GRASS has an inbuilt 3D visualizer. Start by clearing the layers from the layer manager (right-click and select 'Remove'. Now add the `elevation` layer, as well as any vector layers you might want. In the display window, find the drop-down menu showing '2D view' and change this to '3D view'. This will give you a perspective view on the layers. The layer manager will switch to 3D controls. Try move the positioning puck (the green ball in the left window) and height slider around to get different views. Try altering the $z$-exag scale to exaggerate the elevations. The 'Data' tab allows you to choose which layers to use for the z-dimension, coloring, etc. The 'Appearance' tab allows to control the light source. Close this window when you are done. 
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/nviz.png")
+grid.raster(img)
+```
+
+### Shutting down GRASS GIS
+
+When finished, exit the GRASS GUI with [File]>[Exit]. Finally, type:
+
+```
+exit
+```
+
+at the prompt in the GRASS command window to exit GRASS. 
+
+
+## GRASS command line
+
+We'll now restart GRASS, but look at working from the command line. Start GRASS as you did before and select the North Carolina dataset (`nc_spm_08_grass7`), and your mapset. Once running, ignore the GUI and find the terminal. For Mac this will look like this:
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/grasswin3.png")
+grid.raster(img)
+```
+
+And Windows will look like this: 
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/window_shell.png")
+grid.raster(img)
+```
+
+If you are working in Linux or a Unix clone, you can start GRASS without the GUI by typing:
+
+```
+grass -text
+```
+
+In your terminal, the current directory is usually shown before the cursor. If you need to check, run `pwd` on Mac OSX and Unix or `echo %cd%` on Windows. 
+
+To list the contents of a directory, type `ls` for Mac OSX and Unix and  `dir` for Windows. To change directories, use `cd`:
+
+- `cd` will take you to your home directory
+- `cd ..` will go up one level
+- `cd folder` will move to that directory *if* it is a subdirectory of your current directory
+- `cd /full/path/to/folder` or `cd C:\full\path\to\folder` will move to that directory
+
+### GRASS commands
+
+GRASS commands come in a set of categories, defined by the leading character:
+
+- g.* - general commands
+- r.* - raster commands
+- v.* - vector commands
+- d.* - display commands
+- i.* - image commands
+
+See lecture notes for the other categories. 
+
+#### Hints and tips on working with the command line
+
+- All GRASS functions will have a set of parameters (e.g. which layer to display) that need to be added to the functions
+- Spacing is important. You need to leave a space between parameter sets, but not in a parameter set. So this would be correct: `input=layer1 output=layer2` and this would not `input = layer1output = layer2`
+- GRASS will not let you overwrite existing data without adding a specific parameter to do so (`--overwrite`)
+- If you just type the name of the function, this will open the corresponding function menu. This can be useful for checking options, and also gives you access to the function manual
+- For any of the commands, you can get help on the syntax and parameters with the flag '--help'. For example, try running the following code in your terminal:
+	
+```
+g.region --help
+```
+
+We'll start by looking at the parameters of the region (the parameter '-p' prints current settings). Type the following in the terminal and check the output:
+
+```
+g.region -p
+g.proj -p
+```
+
+Now get a list of the available map layers
+
+```
+g.list vect
+g.list rast
+```
+
+Now we'll have a look at a couple of these layers. When working from the command line, you need to explicitly open a graphical window (a monitor). You can do this with the `d.mon` command:
+
+```
+d.mon start=wx0
+```
+
+This starts the first monitor called 'wx0'. You can open up to six of these windows. When you're finished with these, close them as follows (don't do this now!):
+
+```
+d.mon stop=wx0 
+```
+
+Now to visualize a raster layer (the elevation data):
+
+```
+d.rast elevation
+```
+
+Note that the study area extent is much larger than this layer. To zoom in, there are several options. The command `g.region` allows very specific control over the size of the area. This allows you to set the extent manually:
+
+```
+g.region n=230000 s=210000 w=630000 e=650000
+```
+
+Now clear the monitor and redisplay (remember that you can go back to previously issued commands with the up/down keys):
+
+```
+d.erase
+d.rast elevation
+```
+
+Now we'll set the extents to fit the defined raster layer:
+
+```
+g.region rast=elevation
+```
+
+Clear and redisplay the map layer as before. 
+
+We can also set the region to the default extent (these are the settings used when the region is created):
+
+```
+g.region -d
+```
+
+Region management is very important when setting up analyses in GRASS, and we'll spend some more time looking at this later. 
+
+Now reset the region to the `elevation` raster layer, and add the road network on top of this:
+
+```
+g.region rast=elevation
+d.erase
+d.rast elevation
+d.vect roadsmajor
+```
+
+We'll come back to the command line during subsequent labs, but for now, quit GRASS by typing:	
+
+```
+exit
+```
+
+## Starting new projects in GRASS GIS
+
+The philosophy behind the organization of GRASS is that each project you work on will have it's own LOCATION and associated set of files. Of course, you can work on multiple projects using the same LOCATION, but it makes sense at least regionally to organize your data this way. 
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/help_loc_struct.png")
+grid.raster(img)
+```
+
+There are multiple ways to set up these locations. We will look at three of them here. 
+
+### Using a georeferenced file
+
+Start the GRASS GUI as before, but rather than selecting the North Carolina dataset, let's create a new location. We will use the Utah census tract data to make a LOCATION corresponding to Utah. After unzipping, you should have a directory *tl_2008_49_tract00* which contains a shapefile and associated metadata. To use this to define a LOCATION, click on [Location Wizard] on the right hand side of the welcome window. In the next window, make sure that the 'GIS Data Directory' lists your grassdata directory, then give this a name (e.g. `utah_ll`) under 'Project Location'. This will be the new LOCATION that is created. You can also add a title if, for example, you want to note anything about that project. Click [Next].
+
+On the next window "Choose method for creating a new location", select the third option "Read projection and datum from a georeferenced file", and click [Next]. In the next window, browse to the *tl_2008_49_tract00* directory, and select the *tl_2008_49_tract00.shp* shapefile. Click [Next].
+
+On the next window some summary information should be given, including the projection read from the file ('+proj') and datum parameters. If that all looks ok, click [Finish]. Agree to import the datafile into the region and let GRASS work away. This might take a couple of minutes, mainly due to time it takes to import the data. Once this is done, GRASS will ask you if you want to create a MAPSET in your user name. You will need one of these to store any maps and analyses that you create, so click [OK]. 
+
+Now make sure that the `utah_ll` LOCATION and your MAPSET have been selected, and click [Start GRASS]. Go to the 'Settings' menu > 'Map projections' > Display map projections' to see the ellipsoid and datum chosen. 
+
+The layer manager and map display windows should open, so go ahead and make a quick map of Utah. When you are done, quit the layer manager, and quit GRASS in the terminal by typing `exit`.
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/utah_ll.png")
+grid.raster(img)
+```
+
+### Using EPSG codes
+
+The European Petroleum Survey Group (EPSG) provide a set of codes aimed to provide standard information about commonly used projections. These can be manually defined, but in most cases you will find a pre-existing definition that you can use. We will make a second Utah location, but this time using using the state plane definition using feet as a unit of distance. 
+
+Start GRASS with the GUI as before, click on [Location Wizard] and enter a new LOCATION name (e.g. `utah_central`. In the next screen, choose 'Select EPSG code of spatial reference system', and click [Next]. Scroll through the list of defined codes until you find 'NAD83(HARN) / Utah Central (ft)' (code EPSG:2922). Note you can also search for 'Utah' to find all the existing defined projections. Select this one, then click [Next], and GRASS will display a summary screen with the details of this projection. The parameters given are those defined by PROJ, and include:
+
+- `+proj` = the projection (in this case `lcc` - Lambert Conformal Conic)
+- `+lat_0` and `+lon_0` - the center of the projection
+- `+x_0` and `+y_0` - false easting and northing
+- `+a` and `+rf` - Geoid parameters
+- `+to_meter` - Conversion factor to metric system
+
+Different projections will use different parameters. Full details of these can be found at the [PROJ][1] site.
+
+If you are happy with the projection, click [Finish], and GRASS will create the new LOCATION, the start GRASS. More details about the EPSG codes can be found [here][2].
+
+### Using interactively defined parameters
+
+For the final example, we will make up a second location for the North Carolina dataset, using a long/lat projection, but this time using the command line. Start GRASS as before, and start the Location Wizard. Create a new LOCATION called `nc_ll`, then [Next] then 'Select coordinate parameters from a list', then click [Next] again. 
+
+Now select the required projection from the list. We are going to use a WGS84 Latitude/Longitude pseudo-projection. So add the code `ll` (you can find the relevant code from the list) and click [Next]. On the next page you can add standard parallels, and a coordinate center, but we'll leave this with the default settings and click [Next] to choose a datum and ellipsoid. Pick `wgs84` from this page, and click [Next] to chose any transformations. Click [OK] here to get the projection summary. Click [Finish] to return to the starting page. Here, select your new location (`nc_ll`) and add a new mapset, and launch GRASS. Once open, set the study area limits by going to [Settings]>[Computational region]>[Set region]. Use the following parameters.  
+
+- `North`: 37.0
+- `South`: 33.0
+- `West`: -85.0
+- `East`: -75.0
+- N-S resolution: 0.5
+- W-E resolution: 0.5
+
+As before, change to the terminal window and use `g.proj` and `g.region` to examine the parameters of your LOCATION. We will come back to this LOCATION to do some coordinate transformations, but for now exit GRASS and the layer manager. 
+
+## Coordinate transformation
+
+Projections and coordinate systems in GRASS are supported by the PROJ4/6 libraries, and can be used in multiple ways. 
+
+### Using PROJ4 directly
+
+To convert a set of coordinates quickly between two different systems, we can use the programs that are provided by PROJ4. The command **cs2cs** will do this at the command line, and doesn't require that you have started GRASS. As this is using PROJ4 libraries, you will need to enter the full set of parameters to make the correct conversion. The following code allows conversion between Lat/Long coordinates and UTM zone 17 (which corresponds to North Carolina). 
+
+```
+cs2cs -v +proj=latlong +to +proj=utm +zone=17 +ellps=WGS84 +datum=WGS84 +units=m
+```
+
+When you run this, it will ask you to input Longitude/Latitude pairs on the command line, separated by a space. Press return to get the converted coordinates. Press `Ctrl-D` to quit.
+
+More usefully, this can take a whole set of coordinates in a file and convert them. Use `cat` to make a simple file with the coordinates of the corners of the North Carolina Lat/Long location. Enter the following in the terminal (this won't work under windows unless you use the powershell).
+
+```
+cat > crds.txt
+-75 33
+-75 38
+-85 38
+-85 33
+```
+
+And press `Ctrl-D` to close the file. Now use the Unix redirection commands to use this file as an input to **cs2cs**. 
+
+```
+cs2cs +proj=latlong +to +proj=utm +zone=17 +ellps=WGS84 +datum=WGS84 +units=m < crds.txt
+```
+
+Of course, you could add an output redirection symbol `>` to write the output of **cs2cs** to another file:
+
+```
+cs2cs +proj=latlong +to +proj=utm +zone=17 +ellps=WGS84 +datum=WGS84 +units=m < crds.txt > crds_utm.txt
+```
+
+### Projection of raster and vector maps in GRASS
+
+To demonstrate projecting maps between different coordinate systems, we will project a layer from the North Carolina state plane location to the WGS84 location that you just made. Start GRASS and select the `nc_spm_08_grass7` LOCATION. Go to the terminal. 
+
+The first thing we need to do is set the region extent to the file we want to reproject to the new region. Do this using the command **g.region**, with the parameter 'rast', which tells GRASS to set the region to the area defined by a given map layer:
+    
+```
+g.region rast=elevation
+```
+
+We then make a "box" vector map defined as the limits of this region (we'll need this to help in the projection:
+
+```
+v.in.region elevation_box
+```
+
+Now close and exit GRASS, and restart it, but this time choose the other North Carolina location (`nc_spm_08_grass7`). We now project the vector box from the PERMANENT MAPSET in the `nc_ll` LOCATION using `v.proj`:
+
+```
+v.proj location=nc_spm_08_grass7 mapset=user1 input=elevation_box 
+```
+
+And now set the region extent to this box, which defines the limits of the original raster layer. Note that we use the parameter `vect` as we are now using a vector map to set region extent. We also include the parameter 'res' here, to set the resolution of our region to 1 arc second (note the format D:M:S). The final parameter `-pa` ensures that the incoming data aligns correctly. 
+
+```
+g.region vect=elevation_box res=00:00:01 -pa
+```
+
+Having done all this, we can now reproject our raster layer. We specify the input layer (`in`) and output layer (`out`), the LOCATION and MAPSET of the input layer, and the interpolation method (bicubic). Other interpolation methods are available and maybe better suited to very large raster layers (see `r.proj --help` for other options). 
+
+```
+r.proj in=elevation out=elevation location=nc_spm_08_grass7 mapset=PERMANENT method=bicubic
+```
+
+Having done this, return to the Layer Manager and display your new, projected elevation layer. 
+
+Having established the regions, we can now project other layers. To project a vector layer, use **v.proj** instead:
+
+```
+v.proj in=roadsmajor location=nc_spm_08_grass7 mapset=PERMANENT
+```
+
+As we don't specify an output name here, the output layer is by default given the same name as the input layer. 
+
+### Reprojecting raster files with GDAL
+
+An alternative to reprojecting files in GRASS is to reproject the files to the appropriate GRASS LOCATION projection using a preprocessing tool, then import them. The program `gdalwarp` can be used to do this for raster files. As this is part of the [GDAL][3] installation, this will reproject any of the raster file formats that GDAL can read (see [here][4] for details). Other useful GDAL tools are: `gdalinfo`, to provide information about a file, and `gdal_translate` to convert between different formats. Note that these tools can be run at the command line whether or not GRASS is running. **If you want to use these tools in Windows without first starting GRASS, you will need to start the OSGeo4W Shell (under OSGeo4W in the start menu)**. 
+
+For example, to see the list of support formats, type in the command line:
+
+```
+gdalinfo --formats
+```
+
+And to see details about a specific format, type:
+
+```
+gdalinfo --format gtiff
+```
+
+We will use the GDAL tools to reproject a LANDSAT-TM7 scene for the North Carolina WGS84 region. You will need to get the file *p016r035_7t20020524_z17_nn30_nc_spm_wake.tif.zip* from Canvas, copy it to the `grassdata` directory on the server and unzip it. 
+
+Start GRASS in the 'nc_ll' LOCATION, and get information about the region of interest and the projection of the LOCATION:
+    
+```
+g.region -p
+g.proj -p
+```
+
+Now navigate to your `grassdata` directory in your terminal using `cd`. This will be depend on your OS, but will be something like
+
+- Windows: `cd C:\Users\simon\grassdata`
+- Mac OSX: `cd /Users/simon/grassdata`
+- Linux: `cd /home/simon/grassdata`
+
+You'll need to check the exact path on your computer. Note that Unix clones allow tab completion (type the first couple of letters of a directory and hit tab to show all options starting with that combination) which is a big help. Please ask if you are having difficulties with this. When you are there, check that the file is available (either `ls *.tif` or `dir *.tif`)
+
+First, we'll rename the file to make typing it a little easier. 
+```
+cp p016r035_7t20020524_z17_nn30_nc_spm_wake.tif image.tif
+```
+
+Replace `cp` with `copy` for Windows.
+
+Now check the file:
+```
+gdalinfo image.tif
+```
+    
+Now we will need this projection information in a format that can be easily used with **gdalwarp**, so rerun the `g.proj` command, using the flags `-wf` to produce WKT output, and redirect this to a file
+
+```
+g.proj -wf > nc_ll.wkt
+less nc_ll.wkt
+```
+
+This file can be used directly in **gdalwarp** as follows:
+
+```
+gdalwarp -t_srs nc_ll.wkt image.tif image_ll.tif
+```
+
+Now we will import this file into our dataset, using the GRASS command `r.in.gdal`. 
+
+```
+r.in.gdal image_ll.tif output=landsat
+```
+
+Now use `d.rast` to visualize the LANDSAT layer. Note that you can use `g.region` to set the extents to this layer, and visualize the entire LANDSAT scene. 
+
+## Stopping GRASS and cleaning up
+
+Before leaving GRASS, it is usually good practice to close any graphical windows that you opened. You can do this by clicking on the red cross on the top of the window, or by typing
+    
+```
+d.mon stop=wx0
+```
+
+Now exit GRASS. 
+
+
+[1]: https://proj.org
+[2]: http://www.epsg-registry.org
+[3]: http://www.gdal.org
+[4]: http://www.gdal.org/formats_list.html
+[5]: http://grasswiki.osgeo.org
+[6]: http://grassmac.wikidot.com/downloads
+[7]: https://grasswiki.osgeo.org/wiki/Installation_Guide
