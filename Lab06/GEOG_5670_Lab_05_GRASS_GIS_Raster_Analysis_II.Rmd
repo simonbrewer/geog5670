@@ -1,0 +1,869 @@
+---
+title: 'GEOG 5670/6670 Lab 06: GRASS GIS Raster Analysis II'
+author: | 
+  | Simon Brewer
+  | Geography Department
+  | University of Utah
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    fig_caption: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(png)
+library(grid)
+```
+
+## Objectives
+
+The objectives for this lab are to introduce you to:
+
+ 1. introduce you to simple scripting of GRASS commands
+ 2. continue working with the command line in GRASS
+ 3. perform more advanced raster analyses
+ 4. perform a basic site selection using raster layers
+
+The examples given here are modified from chapter 5 of the Open Source GIS book by Neteler and Mitasova (2008).  
+ 
+## GRASS Location
+
+We'll carry on using the North Carolina state plane location for the majority of today's lab. Start GRASS, and choose the `nc_spm_08_grass7` LOCATION, and either the 'user1' or your own MAPSET. 
+
+Once this starts successfully, open a monitor to display the raster layers as we work through them:
+
+```
+d.mon start=wx0
+```
+
+## Scripting review
+
+Shell or Bash scripts are simple text files that group together a set of commands, to allow for repetition or automation. They are also extremely useful for storing and modifying complex sets of commands in GRASS. 
+
+### Extensions
+
+Shell script files generally have the extension: *.sh*. Create a text file called *bash_ex1.sh* either on the server, or on the Windows client and transfer it to the server. 
+
+### Working with scripts on the server
+
+To edit the script once it is on the server, there are several options (the first is recommended):
+
+1. Use WinSCP to edit the script directly on the server. To do this, right click on the file in the server panel (right-hand) of WinSCP, and select 'Edit'. The file should open in a simple text editors. Any updates will be made directly on the server.
+2.  Edit the copy of the script on your client machine, and re-copy it after each update
+3. Use vim from the command line (see previous labs for basic help in using vim)
+
+```
+vim bash_ex1.sh
+```
+
+### Writing Bash scripts
+
+All shell scripts require the command interpreter to be specified in the first line of the script file. The syntax for this is '#!' then the path to the interpreter binary executable. For Bash scripts, the first line should therefore be:
+
+```
+#!/bin/bash
+echo "Hello World"
+```
+
+### Executing Bash scripts
+
+By default, text files are not executable, so the file you just created cannot be 'run', without directly invoking Bash. To make it executable, use the command `chmod` to change its *mode*:
+
+```
+chmod u+x bash_ex1.sh
+```
+
+The parameter `u+x` adds execute permissions for the user (the owner of the file). Using `u-x` will remove this permission, and using `+x` (i.e. without a user specified), will add execute permissions for everybody. This is not generally recommended, particularly on computers with network connections. 
+
+Once the permissions have been set, you can run the program by adding './' before the script name
+
+```
+./bash_ex1.sh
+```
+
+Note that we do not have to add this for system commands (`ls`, `cd`, etc), as these are located in a directory in the search path. To see the current contents of the path, type:
+
+```
+echo $PATH
+```
+
+When you type a command, the first thing that Bash will do is to try to find an executable in these directories. If you are creating your own scripts or programs, you can add a new directory to this path using the `export` command. 
+
+## Variables in Bash scripts
+The use of variables in Bash scripts allows you to add a lot of flexibility to your scripting, and we will be looking at examples of this later. For now we will just look at two examples:
+
+### Using an internal variable
+Variables are declared quite simply in Bash scripts. By convention, upper case is used for variable names, although this is entirely optional. Add the following to your script to declare a new variable and give it a value
+
+```
+STR="Goodbye cruel world"
+echo $STR
+```
+
+Save and run your script. Note that when we use the variable after having declared it, we precede the variable name with a '$'. 
+
+Variables can also have numerical values
+
+```
+X=50
+echo x=$X
+```
+
+### Using arguments
+Bash also uses 'arguments' in scripts. These allow parameters or values to be passed to the script at the time that it is run on the command line. Arguments are are given reserved variable names, starting at `$1` for the first argument, `$2` for the second, and so on. Add the following to your script:
+
+```
+echo $1
+```	
+
+Now save and run the script, but this time add a string after the script name:
+
+```
+./bash_ex1.sh 1000
+> 1000
+```	
+
+Try changing `1000` to something else to check that this works. The variables `$1`, `$2` etc. are *reserved* variable names in Bash. Other useful variables for use with arguments include:
+
+- `$@` - the list of arguments
+- `$#` - the number of arguments
+
+Add the following to your script
+
+```
+echo $2
+echo $@
+echo $#
+```	
+
+And re-run
+
+```
+./bash_ex1.sh john paul george ringo
+```
+
+Note that all arguments are included in the list (`$@`), but only two are individually 'echoed' to the screen.  
+
+## Using GRASS commands
+
+Bash scripts can be used with GRASS commands, as long as GRASS is running. By default, the GRASS commands (e.g. `g.region`) are not in the search path, but are added during GRASS startup. 
+
+Make sure GRASS is running, or start it using the text interface, and make a new script (*grass_ex1.sh*). Add the following commands:
+
+```
+#!/bin/bash
+## Set the region
+g.region rast=elevation
+## Start a monitor and display elevation
+d.mon start=wx0
+d.rast elevation
+d.vect roadsmajor
+```
+
+Save and close the file, then run it from the command line (don't forget to change the permissions), and a new monitor should appear with the elevation data. It is now very easy to modify or extend this script, and re-run it each time it changes. Note the use of the '#' symbol to add comments in to the script. 
+
+As we will be increasingly using multiple commands in GRASS to carry out analyses, it is a good idea to get into the habit of making individual scripts for a particular problems. Once they are made, they can be simply re-run or copied and modified to work on another problem. 
+
+## Data transformation and interpolation
+
+### Vectorization of raster data
+Raster layers containing linear features, points or areas with constant values can be converted to vector layers using `r.to.vect`. 
+
+For example, the layer `streams_derived` contains a stream network derived from watershed analysis. 
+
+```
+d.rast streams_derived
+```	
+
+You might need to erase other layers to see this (and zoom in a little). Any linear feature will need to be 'thinned' (i.e. reduced to a pixel thickness) before conversion to a vector layer, which can be done with `r.thin`
+
+```
+r.thin input=streams_derived output=streams_thinned
+r.to.vect input=streams_thinned output=streams_derived type=line
+d.vect streams_derived col=blue
+```
+
+Compare this to the network derived from aerial photography and contour maps:
+
+```
+d.vect streams col=red
+```
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/streams.png")
+grid.raster(img)
+```
+
+The agreement is mostly good, but some differences exist close to lakes and highways.
+
+Categorical raster data can be used to generate polygons, for example, the main watershed basins:
+	
+```
+d.rast basin_50k
+r.to.vect -s input=basin_50k output=basin_50k type=area
+d.vect -c basin_50k
+```
+
+The `-s` flag smooths the output vector corners, and the parameter `type` forces polygon ('area') output. Other choices are 'line' or 'point'. 
+
+### Generating isolines
+
+Continuous raster layers can be used to generate isolines or contour lines of set values using `r.contour`. This requires an input layer, an output and the 'step' at which isolines should be made.	The function calculates the min and max contour line from the range of values, but these can also be set manually
+
+```
+d.rast elevation
+r.contour elevation out=elev_contour_10 step=10 min=55 max=155
+d.vect elev_contour_10
+```
+
+`r.contour` also has a parameter that removes contours for smaller areas, helping to reduce the amount of noise on the resulting map. Try re-running the line above with `cut=500`. You'll need	to include the `--overwrite` flag to replace the existing contour layer. 
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/contours.png")
+grid.raster(img)
+```
+
+### Resampling and interpolation
+
+Raster layers can be generated at new resolutions by using `r.resamp.interp`. This resamples a raster a layer onto a new resolution, using nearest neighbor, bilinear or bicubic interpolation. 
+
+Nearest neighbor resampling is recommended for categorical maps:
+	
+```
+g.region rast=elevation
+r.resamp.interp input=landuse96_28m output=landuse96_10m method=nearest
+r.info landuse96_28m
+r.info landuse96_10m
+```
+
+For continuous surfaces, bilinear or bicubic interpolation gives better results. These are local interpolators - the bilinear function estimates a new values as a linear function of 4 neighbors, and the bicubic function using 3rd order polynomials and 16 neighbors. We will test these with a 30m elevation layer and interpolate to 10m. Note that we need to set the region to the source raster region first:
+
+```
+g.region rast=elev_ned_30m
+r.resamp.interp input=elev_ned_30m output=elev_ned_10m_bil method=bilinear
+r.resamp.interp input=elev_ned_30m output=elev_ned_10m_bic method=bicubic
+```
+
+These methods work fast, but do not work well for large changes in scale (1:3 or more). They also result in NULL values around the edges of the region, or anywhere where there are insufficient neighboring points to interpolate.
+
+A second module `r.resamp.rst` can be used where there are larger changes in scale, or larger gaps in the data. This is a global function based on a regularized spline in tension (Mitas and Mitasova, 1999). We'll use a different DEM (30m) and interpolate to 10m. Note that we need to set the region to the source raster region first:
+
+```
+r.resamp.rst input=elev_ned_30m elev=elev_ned_10m_rst ew_res=10 ns_res=10
+```
+
+There will be little difference in the output, given the small change in scale, but if you compare the two maps, you should see that the spline-based interpolation no longer has NULL values around the borders:
+
+```
+d.rast elev_ned_10m_bic
+d.mon start=wx1
+d.rast elev_ned_10_rst
+```
+
+The module `r.resamp.stats` allows aggregation of a raster layer (i.e. going from high to lower resolution), using a variety of statistical measures. To resample down to a 100m resolution, first set the region, then use this to calculate  calculate the median value in each 100m cell:
+
+```
+g.region res=100
+r.resamp.stats input=elev_ned_30m output=elev_ned_100m method=median
+d.rast elev_ned_100m
+r.resamp.stats landuse96_28m out=landuse96_100m method=mode
+d.rast landuse96_100m
+```
+
+### Overlaying and merging
+
+Two or more maps can be merged together using the `r.patch` command. This requires a list of input maps and an output map. The function works sequentially: NULL areas in the first layer are filled with values from the second, remaining NULLs are filled with the third, and so on. This can be used to merge together a set of tiles - but remember to set the region to include all tiles.
+
+The North Carolina dataset has four adjoining 6m DEM layers, derived from lidar data (`el_D793_6m`, `el_D783_6m`, `el_D782_6m`, `el_D792_6m`). First set the region:
+
+```
+g.region rast=el_D793_6m,el_D783_6m,el_D782_6m,el_D792_6m
+d.rast el_D793_6m
+d.rast el_D783_6m
+d.rast el_D782_6m
+d.rast el_D792_6m
+```
+
+Now patch them together as follows:
+
+```
+r.patch input=el_D793_6m,el_D783_6m,el_D782_6m,el_D792_6m output=el_6m
+r.colors el_6m col=viridis
+d.rast el_6m
+```
+
+## Spatial analysis
+
+### Neighborhood analysis
+
+We have already seen that `r.mapcalc` has capabilities for doing neighborhood analysis, however, while this is extremely flexible, specifying the neighborhood is fairly complex. The module `r.neighbors` is designed to simplify this by providing a set of neighborhood functions and two standard neighborhoods (square and circular). Run this command with the flag '--help' to see the available functions:
+	
+```
+r.neighbors --help
+```
+
+The function is run with an input and output layer, the method selected and the neighborhood size (a positive odd integer). For example, to see the diversity of landuse type in 7x7 block (roughly equivalent 200m x 200m):
+
+```
+g.region rast=landuse96_28m
+r.neighbors landuse96_28m out=lu_divers method=diversity size=7
+d.rast lu_divers
+r.report lu_divers unit=p
+```	
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/diversity.png")
+grid.raster(img)
+```
+
+As a second example, we will smooth the SRTM elevation data, using a 5x5 circular neighborhood (`-c`):
+
+```
+g.region rast=elev_srtm_30m
+r.neighbors -c input=elev_srtm_30m output=elev_srtm_smth size=5 method=average
+d.rast elev_srtm_30m
+d.rast elev_srtm_smth
+```
+
+### Buffering
+
+The module `r.buffer` can be used to form buffer zones around raster features. For example, we can investigate the risk of noise pollution associated with the main road network in the region. We set a series of buffers to indicate high noise (<250m), medium noise (250-500m) and low noise (>2500m).
+
+```
+g.region rast=landuse96_28m
+r.buffer input=roadsmajor output=roads_buffer dist=250,500,2500
+d.rast roads_buffer
+```
+
+We can now use this layer and the layer with land use classes to try and identify developed areas in these noise zones
+
+```
+r.category landuse96_28m
+r.mapcalc "noise = if(landuse96_28m==1 || landuse96_28m==2, roads_buffers, null())"
+d.erase 
+d.rast noise
+```
+
+Now calculate the size of the areas affected by the different noise levels. We first use `r.support` to copy the labels from the buffer layer to the noise layer:
+
+```
+r.support noise rast=roads_buffers
+r.report -n noise unit=a,k
+```
+
+### Cost surfaces
+
+Cost surfaces are used to define the cumulative cost of moving across a surface from one point to another. The costs depend on some underlying layer(s) that indicate spatial variation in this cost; for example, the cost of travel might be higher in steep terrain than in flat terrain. GRASS has a function `r.cost` to calculate these costs, and a second `r.drain` which can be used to find the optimal route, given these costs. We will use them here in a simple example to assess which fire station would be the closest to a fire occurring at 634886E, 224328N in North Carolina State Plane coordinates. 
+
+For this we need 
+
+- the locations of the fire stations (vector)
+- the location of the fire (vector)
+- the road network with speed limits
+
+We start be creating a layer with the fire. To do this, we use the Unix function **echo** and the pipe symbol '|' to pass the coordinates to `v.in.ascii`, which will then create the vector layer. We could equally create a text file with the coordinates and use the redirect symbol '>' to do this, but this is faster. We then plot this together with the road network:
+
+```
+g.region swwake_30m 
+echo "634886 224328 1" | v.in.ascii input=- output=fire_pt separator=space
+v.info fire_pt
+d.vect streets_wake
+d.vect fire_pt fill_color=red icon=basic/marker size=20
+```
+
+To form a cost surface, we first need to convert the roads to a raster layer, where a pixel will have the speed limit of the road that passes through it. First, find the column name in the 'streets_wake' vector layer with the speed limits, then use this as the attribute in the module `v.to.rast` to convert to a raster:
+
+```
+v.info -c streets_wake
+v.to.rast input=streets_wake output=streets_speed use=attr attribute_column=SPEED
+```
+
+In order to get a full cost surface, we will replace the off-road sections of this raster layer (currently NULLs) with a low speed (5 mph). 
+
+```
+r.null map=streets_speed null=5
+r.colors streets_speed col=gyr
+d.rast streets_speed
+d.vect fire_pt fill_color=red icon=basic/marker size=20
+```
+
+To convert this into a cost surface, we can simply take inverse of the speed, resulting in lower costs on road segments with higher speeds.
+
+```
+r.mapcalc "streets_time = 1./streets_speed"
+d.rast streets_time
+d.vect fire_pt col=red icon=basic/marker size=20
+```
+
+We now estimate the cost of travel from each pixel to the fire using `r.cost`. This estimates the lowest possible cost of all the possible ways to get between that cell and the target.  
+
+```
+r.cost -k input=streets_time output=streets_cost start_points=fire_pt
+d.rast streets_cost
+```
+
+Add the locations of fire and fire stations to the maps. We add a text string giving the station name, taken from the 'LOCATION' column in the attribute table:
+
+```
+d.vect fire_pt fill_color=red icon=basic/marker size=20
+d.vect firestations col=red icon=basic/pushpin size=10 attribute_column=LOCATION label_color=black
+```
+
+It is fairly obvious from this which station has the fastest travel time (Western Blvd), but to check, query the map with `d.what.rast`. Alternatively, we can use `v.out.ascii` to get the coordinates of all stations and pipe this to `r.what` (this will include stations outside of the region):
+
+```
+v.out.ascii firestations separator=' ' | r.what streets_cost
+```
+
+We can a little further here, and pipe the output of `r.what` to **awk**, a data extracting and reporting tool that is standard on all Unix systems. this uses a `$` notation to indicate columns. Here, we ask it print all four columns (`$0` means print all columns) for each row where the fourth column (`$4`) is NOT a NULL (*):
+
+```
+v.out.ascii firestations separator=' ' | r.what streets_cost separator=' ' |awk '{if ($4 != "*") print $0}'
+```
+
+Now we can find the optimal path for the closest station (20) using `r.drain` and make a final map (the '-n' flag counts the number of cells the route passes through):
+
+```
+r.drain -n input=streets_cost output=route20 start_coordinates=635940,225912
+d.vect streets_wake col=grey
+d.vect fire_pt col=red icon=basic/marker size=20
+d.vect firestations col=red icon=basic/pushpin size=10 attribute_column=LOCATION label_color=black
+d.rast route20	
+```	
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/drain.png")
+grid.raster(img)
+```
+
+## Terrain and watershed analysis
+
+### Slope, aspect and curvature
+
+The module `r.slope.aspect` contains functions for most basic topographic analysis
+
+- slope: steepest slope to neighbors in degrees from horizontal
+- aspect: direction of steepest slope in degrees from East
+- profile curvature: curvature in the direction of steepest slope. Used for flow models: convex = acceleration; concave = deceleration
+- tangential curvature: curvature perpendicular to the steepest slope. Used for flow models: convex = dispersal; concave = focusing
+
+The module will also calculate partial derivatives, which we will use later in an erosion model. [There are existing maps for aspect and slope in the PERMANENT mapset, so we give them slightly different names here.] 
+
+```
+g.region rast=elevation
+r.slope.aspect elev=elevation slope=slope2 aspect=aspect2 pcurv=pcurv tcurv=tcurv
+```
+
+Use `d.rast.leg` to visualize the output. Another function, `d.polar` plots a rose diagram showing the number of cells with any given aspect:
+
+```
+d.polar aspect2 undef=0
+```
+
+As `r.slope.aspect` will assign the value 0 to any flat areas, the parameter `undef` tells `d.polar` to ignore these while creating the rose diagram. 
+
+In a previous GRASS lab, we used aspect to derive a raster layer representing shaded terrain from the GUI. Here, we'll repeat the exercise from the command line. First, we use `r.relief` to generate the shaded layer (note that we are replacing the previous layer we generated, so need to incorporate the `--overwrite` flag): 
+
+```
+r.relief --overwrite input=elevation output=elevation_shade altitude=30 azimuth=270
+d.rast elevation_shade
+```
+
+Next we combine a raster layer and the shaded relief to generate a single shaded layer. Here, we'll use the `landclass96` layer from the PERMANENT mapset:
+```
+r.shade shade=elevation_shade color=landclass96 output=lc96_shaded
+d.rast lc96_shaded
+```
+
+The parameters 'altitude' and 'azimuth' give the height and direction of the sun (or whatever light source is represented here). This layer can be used as an 'intensity' layer to create an image combining a color image and shading:
+
+```
+d.his hue=elevation intensity=elevation_shade
+```
+
+This function further allows you to include a layer representing 'saturation'; we will see how this works in a later section.
+	
+### Sun illumination
+Two modules exist in GRASS to calculate the relationship between the suns position in the sky and the landscape. As these can be fairly lengthy calculations, we will lower the resolution of the region to 30x30m:
+
+```
+g.region rast=elevation res=30
+```
+
+The first of these `r.sunmask` can be used to calculate the position of the sun for a given date and time, relative to the center point of a given map. As we do not specify an output layer, this simply returns the position of the sun, as well as some basic details (sun rise and sunset).
+
+```
+r.sunmask -s --v elevation year=2014 month=2 day=24 hour=16 minute=25 sec=0 timezone=-5 
+```
+
+If the '-s' flag is NOT used, then this module will calculate which pixels of an elevation layer will be in shadow (this can take some time):
+
+```
+r.sunmask --v elevation output=shadow_30m year=2014 month=2 day=24 hour=17 minute=00 sec=0 timezone=-5
+d.erase
+d.rast shadow_30m
+```
+
+The second module (`r.sun`) will calculate the daily integrated solar radiation received, as direct beam (`beam_rad`), diffuse (`diff_rad`) and reflected (`refl_rad`), all in W m-2 day-1. This requires as input:
+
+- elevation (`elevation`)
+- aspect (`aspect`)
+- slope (`slope`)
+- day of the year [1-365] (`day`)
+- albedo as a layer or constant (`alb`)
+- the Linke turbidity coefficient as a layer or constant (`lin`)
+
+We can use the slope and aspect layers calculated previously:
+	
+```
+r.sun elevation=elevation aspect=aspect2 slope=slope2 linke_value=2.5 albedo_value=0.25 beam_rad=b300 insol_time=it300 diff_rad=d300 refl_rad=r300 glob_rad=g300 day=300	
+```
+
+By default, the module includes the shadowing effects of the topography (`-p` excludes this). The output layers *b300*, *d300*, *r300* and *g300* give the direct beam, diffuse, reflected and total radiation, and the output *it300* gives the day length in hours. 
+
+```
+d.rast g300
+```
+
+Alternatively, you can give `r.sun` a time, and it will calculate the solar incidence angle and irradiance. 
+
+### Line-of-sight
+
+Line-of-sight functions are useful for planning the location of new construction, by showing the area visible from the new site and inversely, the area where the new location is visible. We will use a simple example of a new tower block built in downtown Raleigh (165m tall), and the area from which it is visible. We use `r.los` to get the line of sight. The inputs include the elevation layer, the coordinates and height of the location and the maximum distance over which to calculate LOS:
+
+```
+r.viewshed input=elevation output=tower_los coordinates=642212,224767 observer_elevation=165
+d.his hue=tower_los intensity=elevation_shade
+```
+
+The output gives the angle in degrees from the ground required to see a cell from the point location.
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/los.png")
+grid.raster(img)
+```
+
+### Watershed analysis
+
+Further topographic analysis tools exist to analyze flow patterns on a landscape (flow tracing or routing). The variables that we are interested in here include both local variables, flow path length and flow accumulation and landscape variables: the stream network and watershed definition. These are integral variables: their value at any point depends on the values elsewhere, particularly upstream of that location. 
+
+GRASS has two approaches for flow direction:
+
+- D8: flow from any cell is in one of eight directions at 45 degree intervals (`r.watershed`,`r.terraflow`)
+- D-infinity: flow direction is calculated as a continuous value between 0 and 360 (`r.flow`)
+
+Flow can be routed in several ways:
+
+- SFD: flow travels to a single neighboring cell (`r.watershed`, `r.flow`)
+- MFD: flow travels to multiple neighboring cells (`r.terraflow`,`r.topmodel`)
+
+We will look at an example here using the simplest of these (`r.watershed`, D8, SFD). This requires as input an elevation map and a parameter to define the minimum watershed basin size in raster cells. Outputs include a drainage direction network (`drain`), flow accumulation across this network (`accum`), watershed basins (`basin`) and matching stream network (`stream`). Start by setting the region to correspond to the input raster layer, then run the command:
+
+```
+g.region rast=elev_ned_30m
+r.watershed -s elev_ned_30m thresh=10000 drain=draindir_10k accum=accum_10k basin=basin_10k stream=streams_10k
+```
+
+The `-s` flag calculates drainage using the SFD approach. If you remove this, it will switch to MFD, and will take longer. If you are working with very large DEMs, then it is recommended to use `r.terraflow` instead. 
+
+Try visualizing some of the output. Note that the stream layer contains relatively few streams, as it requires that a 'stream' has at least the number of cells used as a threshold running into it. A better representation of the stream network can be obtained by manually selecting all cells above a certain threshold:
+
+```
+r.mapcalc "streams_hi = if(accum_10k>100,1,null())"
+```
+
+Convert the streams and basins layers to vector layers, and visualize these. 
+
+```
+r.to.vect -s basin_10k out=basin_10k type=area
+r.thin streams_hi output=streams_hi_thin
+r.to.vect -s streams_hi out=streams_hi
+```
+
+A further module allows you to extract the watershed for any given point. For example, if a monitoring station is located at 638969E, 223311N, the associated watershed can be extracted as follows:
+
+```
+r.water.outlet drainage=draindir_10k basin=basin_pnt easting=638969 northing=223311
+r.to.vect basin_pnt out=basin_pnt feature=area
+d.rast basin_10k
+d.vect basin_pnt col=white type=boundary
+```
+
+We can now use the watershed layer with the `r.his` function to provide hue, intensity and saturation:
+
+```
+d.his h_map=basin_10k i_map=elevation_shade s_map=elevation
+```
+
+The saturation layer 's_map' adds haziness to the image, increasing a lower elevation values. 
+
+## Site selection in Utah
+
+### Dataset
+The file *NESLC.zip* on Canvas contains a set of raster and vector layers for North-East Salt Lake City, including:
+
+- NED derived elevation
+- Road shapefile
+- Parks shapefile
+- School shapefile
+
+These data are taken from Utah's ARGC (http://gis.utah.gov), and have been clipped to the area of the raster file to keep sizes down. All data are in UTM (zone 12) projection. Get this file and transfer it to the server. 
+
+### GRASS Location
+We will need to create a new location for this dataset. Start GRASS as before, but select a new location, making sure that the 'GIS Data Directory' lists your grassdata directory, then give the new location a name (e.g. `utah_utm`).  
+
+There are various ways to setup the location (you only need to choose one):
+
+1. Use the GeoTIFF layer in the zipfile: *NE_SaltLake_DEM.tif*
+2. Use one of the shapefiles
+3. Use EPSG code 26912
+4. Define the region by hand
+	1. Projection: Universal Transverse Mercator (UTM)
+	2. Zone: 12 North
+	3. Geodetic datum: NAD83
+	
+Create a mapset under your name, then start GRASS and open a monitor to display the results:
+
+```
+d.mon start=x0
+```
+
+### Import the data
+
+Start by importing the GeoTIFF file with the DEM layer (*NE_SaltLake_DEM.tif*) using `r.in.gdal`. If this was successful, set the region extents to match the DEM layer and display the map:
+
+```
+g.region rast=elevation
+r.colors elevation col=elevation
+d.rast elevation
+```	
+
+Now import the vector layers. We'll spend some with vector data in the next couple of labs, but for now, use the module `v.in.ogr`. For example, to import the roads shapefile:
+
+```
+v.in.ogr dsn=NESLC/Roads output=roads
+```
+
+By using the parameter 'dsn', we give the datasource name (DSN), which is the directory holding the shapefile. Alternatively, we can specify the shapefile layer directly by using the parameter 'layer'. 
+
+Display the road network on top of the DEM
+
+```
+d.vect roads
+```
+
+Now import the schools and parks layer, and display them.  As the parks layer is polygon data, we can choose to display only the polygon in green as follows:
+
+```
+d.vect parks type=area fcolor=green
+```
+
+### Problem
+You are have been given the task of selecting an area for building a new house. The selection criteria you have been given are as follows - the house should be located
+
+- at mid elevation [1750-2500m]
+- south facing [SW (225) - SE (315)]
+- on a low-medium slope [<15 degrees]
+- close to a school [<1000m]
+- close to a road but setback [150-500m]
+
+We can use the conditional statements in `r.mapcalc` to select out areas corresponding to these zone, however we first need to pre-process our data to get all the required datasets in raster form.
+
+### Binary selection
+
+#### Pre-processing slope and aspect
+
+Slope and aspect can be derived from DEM data using the module `r.slope.aspect`. Specify the input layer, as well as names for the output aspect and slope. This function will, in addition, calculate curvature and first and second partial derivatives of the slopes if specified.
+
+Aspect is calculated in degrees counter-clockwise from East (north=90; south=270), and slopes in degrees above horizontal. Slopes can be calculated as percentages by setting the flag 'format=percent'. 
+
+```
+r.slope.aspect elevation=elevation slope=slope aspect=aspect
+d.rast aspect
+d.rast slope
+```
+
+Note that the aspect layer shows artefacts from contour lines in flatter areas. 
+
+Convert these layers (and elevation) to binary layers, where 1 represents the area included in the criteria listed above. For example, to select elevation:
+
+```
+r.mapcalc "elev_sel = if(elevation >= 1750 && elevation <= 2500,1,0)" 
+```
+
+Now make binary layers from the slope and aspect layers. 
+
+#### Pre-processing schools and roads
+
+We now need to make selection layers from the schools and roads vector layers. There are a couple of ways to get to this information, but here we will convert the original vector layers to raster layers, then work with those. The module `v.to.rast` does conversion from raster to vector. It requires an input layer, an output name and the value to give to the pixel ('use') - we will just use the category, in other words the segment number or school number in the dataset.
+
+```
+v.to.rast schools out=schools use=cat
+v.to.rast roads out=roads use=cat
+d.rast schools
+d.rast roads
+```
+
+Note that we can use the same name for a raster and vector layer, as these are stored separately. 
+
+In order to convert these to binary layers, we first need to estimate distances from the features. We can create buffers of a certain distance, using `r.buffer` or we can estimate distances from every point to the nearest raster feature, using `r.grow.distance`. We will use this latter function: 
+
+```
+r.grow.distance input=schools distance=schools_dist 
+r.grow.distance input=roads distance=roads_dist 
+d.rast schools_dist	
+d.rast roads_dist
+```
+
+Now use `r.mapcalc` as with the slope/aspect/elevation layers to obtain areas that correspond to the criteria for distance to schools and roads specified above. 
+
+#### Combining selected areas
+
+As we have created binary layers for each selection criteria, we can combine these by simply taking the product of the five maps:
+
+```
+r.mapcalc "final_sel=elev_sel * slope_sel * aspect_sel * schools_sel * roads_sel"
+d.rast final_sel
+```
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/finalsel1.png")
+grid.raster(img)
+```
+
+We have obtained out final layer giving the selected areas corresponding to our criteria, and can recommend building here. The final area is highly restricted, mainly as the school and elevation criteria have little overlap. We could expand this by relaxing the specified criteria, but to avoid more arbitrary cutoffs, we can explore the use of fuzzy logic to obtain a more nuanced selection.
+
+### Fuzzy selection
+
+Here, we will replace the split into a binary selection with a classification using a fuzzy membership, allowing each pixel to be assigned a value between 0 and 1, dependent on how well it fits the criteria. Fuzzy membership functions are given in below for each variable. For each of these, the standard method is to use the crisp cutoff (the criteria given above) as the 0.5 membership value, with the rise or fall of membership values symmetrical around this. The length of the gradation between 0 and 1 is, however, arbitrary and can influence the final results. 
+
+#### Creating a fuzzy classification
+
+We'll start be classifying the slope values. The table below gives the membership function change points, which can be used with the 'graph' function in `r.mapcalc`.
+
+| Slope (deg) | Membership |
+| ------------: | -------------: |
+| 0-5 | 1 |
+| 15 | 0.5 |
+| 25+ | 0 |
+
+The syntax for this command requires these change points to be entered as x,y pairs. So to reclassify the slope layer as a fuzzy classification:
+
+```
+r.mapcalc "slope_fzy=graph(slope, 0,1, 5,1, 15,0.5, 25,0, 90,0)"
+```
+
+Now carry out fuzzy classification for the other four variables (elevation, aspect, distance to school and distance to road) using the tables in the appendix. Check each one by display the output layer. 
+
+When done, we can create a final fuzzy selection layer by combining the individual layers. We will do this again by simply calculating the product of the five fuzzy layers. 
+
+```
+r.mapcalc "final_fzy=elev_fzy * aspect_fzy * slope_fzy * schools_fzy * roads_fzy"
+d.erase
+d.rast final_fzy
+```
+
+The final map indicates some potential suitability on the edge of Salt Lake City, which was not there previously. To visualize this better, use `r.mapcalc` to select all areas equal to 0 to NULLs:
+
+```
+r.mapcalc "final_fzy2=if(final_fzy>0,final_fzy,null())"
+d.rast final_fzy2
+```
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/finalsel2.png")
+grid.raster(img)
+```
+
+We can now investigate which of these factors is the greatest limitation in any area, by interactively querying the layers using `d.what.rast`. Run this with the binary layer and all fuzzy layers:
+
+```
+d.what.rast final_fzy_bin,elev_fzy,slope_fzy,aspect_fzy,schools_fzy,roads_fzy
+```	
+
+Click on the 'selected' areas to see the membership for the different variables. Right-click when done. 
+
+### Stopping GRASS and cleaning up
+
+Before leaving GRASS, it is usually good practice to close any graphical windows that you opened. You can do this by clicking on the 'red cross' on the top of the window, or by typing
+    
+```
+d.mon stop=x0
+```    
+
+Now exit GRASS. 
+
+#### Elevation membership function
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/elevMF.png")
+grid.raster(img)
+```
+
+| Elevation (m) | Membership |
+| ------------: | -------------: |
+| 0-1500 | 0 |
+| 1750 | 0.5 |
+| 2000-2250 | 1 |
+| 2500 | 0.5 |
+| 2750 | 0 |
+
+#### Slope membership function
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/slopeMF.png")
+grid.raster(img)
+```
+
+| Slope (deg) | Membership |
+| ------------: | -------------: |
+| 0-5 | 1 |
+| 15 | 0.5 |
+| 25+ | 0 |
+
+#### Aspect membership function
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/aspectMF.png")
+grid.raster(img)
+```
+
+| Aspect (deg) | Membership |
+| ------------: | -------------: |
+| 0-180 | 0 |
+| 225 | 0.5 |
+| 270 | 1 |
+| 315 | 0.5 |
+| 360 | 0 |
+
+#### School distance membership function
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/schoolMF.png")
+grid.raster(img)
+```
+
+| Distance (m) | Membership |
+| ------------: | -------------: |
+| 0-500 | 1 |
+| 1000 | 0.5 |
+| 1500+ | 0 |
+
+#### Road distance membership function
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/roadMF.png")
+grid.raster(img)
+```
+
+| Distance (m) | Membership |
+| ------------: | -------------: |
+| 0-50 | 0 |
+| 150 | 0.5 |
+| 250-400 | 1 |
+| 500 | 0.5 |
+| 600 | 0 |
+
+
