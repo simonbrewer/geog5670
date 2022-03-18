@@ -1,0 +1,672 @@
+---
+title: 'GEOG 5670/6670 Lab 07a: Scripting with Bash and GRASS'
+author: | 
+  | Simon Brewer
+  | Geography Department
+  | University of Utah
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    fig_caption: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(png)
+library(grid)
+```
+
+## Objectives
+
+The main goal of this lab is to get you continuing to work with the Bash shell in Linux to run GRASS:
+
+ 1. introduce variables in Bash scripts
+ 3. develop scripts using GRASS commands
+
+Note that the very first part of this lab is copied from the previous lab, so if you have already done this work feel free to skip it. 
+
+To access the class OnDemand page, just enter the following address in your browser
+
+https://ondemand-class.chpc.utah.edu/pun/sys/dashboard/batch_connect/sys/GEOG5670_desktop/
+
+## GRASS Location
+
+We'll carry on using the North Carolina state plane location for the majority of today's lab. Start GRASS, and choose the `nc_spm_08_grass7` LOCATION, and either the 'user1' or your own MAPSET. 
+
+Once this starts successfully, open a monitor to display the raster layers as we work through them:
+
+```
+d.mon start=wx0
+```
+
+## Scripting review
+
+Shell or Bash scripts are simple text files that group together a set of commands, to allow for repetition or automation. They are also extremely useful for storing and modifying complex sets of commands in GRASS. 
+
+### Extensions
+
+Start by making a folder for today's lab. Then open a terminal and change directory to the new folder. We'll now create a text file called *bash_ex1.sh* in this folder. Note that shell script files generally have the extension: *.sh*. 
+
+### Working with scripts on the CHPC cluster
+
+There are several options for editing text files on a Linux system. Go to the Applications menu, then under 'Accessories', you should see the following editors (this is a non-exhaustive list):
+
+1. Text Editor
+2. Emacs
+3. Joe's Own Editor
+4. Kate
+5. Vi IMproved
+
+If you don't know where to start, the first of these is probably the simplest to use. It is more limited than the others, but will be fine for the scripts we are making. Just be sure to save your new file in the folder you created.
+
+Note that you can also create files using `vim` on the command line, if you're feeling brave:
+
+```
+vim bash_ex1.sh
+```
+
+### Writing Bash scripts
+
+All shell scripts require the command interpreter to be specified in the first line of the script file. The syntax for this is '#!' then the path to the interpreter binary executable. For Bash scripts, the first line should therefore be:
+
+```
+#!/bin/bash
+echo "Hello World"
+```
+
+### Executing Bash scripts
+
+By default, text files are not executable, so the file you just created cannot be 'run', without directly invoking Bash. To make it executable, use the command `chmod` to change its *mode*:
+
+```
+chmod u+x bash_ex1.sh
+```
+
+The parameter `u+x` adds execute permissions for the user (the owner of the file). Using `u-x` will remove this permission, and using `+x` (i.e. without a user specified), will add execute permissions for everybody. This is not generally recommended, particularly on computers with network connections. 
+
+Once the permissions have been set, you can run the program by adding './' before the script name
+
+```
+./bash_ex1.sh
+```
+
+Note that we do not have to add this for system commands (`ls`, `cd`, etc), as these are located in a directory in the search path. To see the current contents of the path, type:
+
+```
+echo $PATH
+```
+
+When you type a command, the first thing that Bash will do is to try to find an executable in these directories. If you are creating your own scripts or programs, you can add a new directory to this path using the `export` command. 
+
+## Variables in Bash scripts
+
+The use of variables in Bash scripts allows you to add a lot of flexibility to your scripting, and we will be looking at examples of this later. For now we will just look at two examples:
+
+### Using an internal variable
+
+Variables are declared quite simply in Bash scripts. By convention, upper case is used for variable names, although this is entirely optional. Add the following to your script to declare a new variable and give it a value
+
+```
+STR="Goodbye cruel world"
+echo $STR
+```
+
+Save and run your script. Note that when we use the variable after having declared it, we precede the variable name with a '$'. 
+
+Variables can also have numerical values
+
+```
+X=50
+echo x=$X
+```
+
+### Using arguments
+
+Bash also uses 'arguments' in scripts. These allow parameters or values to be passed to the script at the time that it is run on the command line. Arguments are are given reserved variable names, starting at `$1` for the first argument, `$2` for the second, and so on. Add the following to your script:
+
+```
+echo $1
+```	
+
+Now save and run the script, but this time add a string after the script name:
+
+```
+./bash_ex1.sh 1000
+> 1000
+```	
+
+Try changing `1000` to something else to check that this works. The variables `$1`, `$2` etc. are *reserved* variable names in Bash. Other useful variables for use with arguments include:
+
+- `$@` - the list of arguments
+- `$#` - the number of arguments
+
+Add the following to your script
+
+```
+echo $2
+echo $@
+echo $#
+```	
+
+And re-run
+
+```
+./bash_ex1.sh john paul george ringo
+```
+
+Note that all arguments are included in the list (`$@`), but only two are individually 'echoed' to the screen.  
+
+## Using GRASS commands in scripts
+
+Bash scripts can be used with GRASS commands, as long as GRASS is running. By default, the GRASS commands (e.g. `g.region`) are not in the search path, but are added during GRASS startup. 
+
+Make sure GRASS is running, or start it using the text interface, and make a new script (*grass_ex1.sh*). Add the following commands:
+
+```
+#!/bin/bash
+## Set the region
+g.region rast=elevation
+## Start a monitor and display elevation
+d.mon start=wx0
+d.rast elevation
+d.vect roadsmajor
+```
+
+Save and close the file, then run it from the command line (don't forget to change the permissions), and a new monitor should appear with the elevation data. It is now very easy to modify or extend this script, and re-run it each time it changes. Note the use of the '#' symbol to add comments in to the script. 
+
+### Example with arguments
+
+We will now make a very simple script that will display the raster layer that is given as an argument. Create a new file (*grass_ex2.sh*) and enter the following text:
+
+```
+#!/bin/bash
+## Create variable from input argument
+RASTER=$1
+## Set region
+g.region rast=$RASTER
+## Start/clear monitors
+d.mon start=wx0
+d.erase -f
+## Display
+d.rast $RASTER
+d.barscale at=15.0,10.0
+d.text text=$RASTER bgcolor=white at=15,90
+```
+
+Save and change the permissions to make it executable. Run the script using the name of a raster layer as the first argument (e.g. `elevation`). If this works, try with a different raster layer. 
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/grass_script_1.png")
+grid.raster(img)
+```
+
+Note that if you run this script twice, you will get an error the second time as the monitor is already open. We'll look at dealing with that next. 
+
+## Conditional statements in Bash
+
+Bash conditional statements perform different computations or actions depending on whether a programmer-specified Boolean condition evaluates to true or false. These statements are used to execute different parts of your shell program depending on whether certain conditions are true. 
+
+In Bash, we have the following conditional statements:
+
+- Simple If: `if..then..fi` statement
+- If-Else: `if..then..else..fi` statement
+- Else If ladder: `if..elif..else..fi` statement
+- Nested If: `if..then..else..if..then..fi..fi` statement
+
+The following gives the code structure and an example of each one of these. For each *example* (not *code*), create a new shell script, add the code, the make the script executable and run it as described above. All the examples take a number as an input argument (`$1`) and then use conditional statements to choose between sets of commands. 
+
+### Simple If code:
+
+```
+if [ conditional expression ]
+then
+	statement1
+	statement2
+	..
+fi
+```
+
+This if statement is also called as simple if statement. If the given conditional expression is true, it enters and executes the statements enclosed between the keywords “then” and “fi”. If the given expression evaluates as TRUE, then the consequent statement list is executed, if not it is ignored
+
+#### Simple If example:
+
+```
+#!/bin/bash
+count=$1
+if [ $count -eq 100 ]
+then
+	echo "Count is 100"
+fi
+```
+
+Remember to run this with an input argument:
+
+```
+./myIfExample.sh 100
+```
+
+### If-Else code:
+
+```
+if [ conditional expression ]
+then
+	statement1
+	statement2
+	..
+else
+	statement3
+	statement4
+	..
+fi
+```
+
+If the conditional expression is evaluated as TRUE, it executes statements 1 and 2. If the conditional expression returns FALSE (zero), it jumps to the "else" part, and executes statements 3 and 4. After the execution of if/else part, the script execution resumes and any following statements are executed.
+
+#### If-Else example:
+
+```
+#!/bin/bash
+count=$1
+if [ $count -eq 100 ]
+then
+ 	echo "Count is 100"
+else
+  echo "Count is not 100"
+fi
+```
+
+### Else If ladder code:
+
+```
+if [ conditional expression1 ]
+then
+	statement1
+	statement2
+	..
+elif [ conditional expression2 ]
+then
+	statement3
+	statement4
+	..
+	.
+	.
+else
+	statement5
+fi
+```
+
+You can use this if you want to select among several blocks of code to execute. It starts by evaluating expression 1, and if it is TRUE executes statements 1 and 2. If not, it evaluates expression 2, and executes 3 and 4 if TRUE If both the if and elif expressions are FALSE, then it reaches the else block and executes the statements found there. Note that you can have several `elif` expressions for multiple choices. 
+
+#### Else If ladder example:
+
+```
+#!/bin/bash
+count=$1
+if [ $count -eq 100 ]
+then
+  echo "Count is 100"
+elif [ $count -gt 100 ]
+then
+  echo "Count is greater than 100"
+else
+  echo "Count is less than 100"
+fi
+```
+
+### Nested If code
+
+```
+if [ conditional expression1 ]
+then
+	statement1
+	statement2
+	.
+else
+	if [ conditional expression2 ]
+	then
+		statement3
+		.
+	fi
+fi
+```
+
+The keyword `fi` indicates the end of the inner if statement, so all commands that run in the statement must finish prior to this keyword.
+
+#### Nested If example:
+
+The Else-If ladder example mentioned in above can be converted to a nested if as follows:
+	
+```
+#!/bin/bash
+count=$1
+if [ $count -eq 100 ]
+then
+	echo "Count is 100"
+else
+	if [ $count -gt 100 ]
+	then
+		echo "Count is greater than 100"
+	else
+		echo "Count is less than 100"
+	fi
+fi
+```
+
+### Conditional expressions
+
+Bash expression is the combination of operators, features, or values used to form a bash conditional statement. Conditional expression could be binary or unary expression which involves numeric, string or any commands whose return status is zero when success.
+
+There are several conditional expressions that could be used to test with files and variables: 
+
+- `[ -e filepath ]` Returns true if file exists.
+- `[ -x filepath ]` Returns true if file exists and is executable
+- `[ -z variable ]` Returns true if variable is not defined (has zero length)
+
+Conditional expressions for comparison:
+
+- `[ var1 == var2 ]` Returns true if the variables are equal
+- `[ var1 != var2 ]` Returns true if the variables are not equal
+Also includes (>, >=, <, <=). 
+
+You can use the usual Boolean operators:
+
+- `[ expr1 ] && [ expr2 ]` Returns true if both the expressions are true
+- `[ expr1 ] || [ expr2 ]` Returns true if either of the expressions are true
+
+### Example 1. Check File Existence
+
+The following Bash shell script code-snippet gets the filename with its absolute path, and checks if the file exists or not and it throws the appropriate information.
+
+```
+#! /bin/bash
+file=$1
+if [ -e $file ]
+then
+	echo -e "File $file exists"
+else
+	echo -e "File $file doesnt exists"
+fi
+```
+
+### Example 2. Compare Numbers
+
+The below script reads two integer numbers from user, and checks if both the numbers are equal or greater or lesser than each other.
+
+```
+#!/bin/bash
+echo "Please enter first number"
+read first
+echo "Please enter second number"
+read second
+if [ $first -eq 0 ] && [ $second -eq 0 ]
+then
+	echo "Num1 and Num2 are zero"
+elif [ $first -eq $second ]
+then
+	echo "Both Values are equal"
+elif [ $first -gt $second ]
+then
+	echo "$first is greater than $second"
+else
+	echo "$first is less than $second"
+fi
+```
+
+### GRASS example
+To demonstrate the use of a conditional statement in Bash, we will make a modified version of the plotting script we made in a previous lab. Open a text editor and enter the following code:
+
+```
+#!/bin/bash
+	
+$RASTER=$1
+	
+if [ -z "$GISBASE" ]
+then
+	echo "GRASS must be running to use this script"
+	exit 1
+fi
+	
+g.region rast=$RASTER
+	
+d.rast $RASTER
+```
+
+In the `if` loop, we test for the existence of the variable "$GISBASE" which defines the GRASS directory on the computer. This is set automatically when you start GRASS, and if it is an empty string, then this implies that GRASS has not yet been started. We use the command 'exit' to quit the script. This is given an integer value (1), which can be subsequently used to test whether or not a script ran successfully. 
+
+Save the file as a script (e.g. *ifexample.sh*), change the permissions and run, remembering to give a raster layer as an argument:
+
+```
+./ifexample.sh landuse96_28m
+```
+
+Try this again without GRASS running.
+
+We can expand this a little to check to see if a monitor is open. This creates a new variable by running the command `d.mon -p` to list all open monitors. If no monitors are running, this returns a character string "No monitor currently selected for output". We then use the `sed` program to convert this into an empty string, effectively making the variable `monitorcheck` undefined. We then test as before. Add the following code in your script after the first `if` loop, but before the GRASS commands:
+
+```
+monitorcheck=`d.mon -p|sed s/'No monitor currently selected for output'//`
+
+if  [ -z "$monitorcheck" ]
+then
+	g.message -e "You must select a display monitor"
+	exit 2
+fi
+```
+
+## Control loops in Bash
+
+### Method 1: Bash For Loop using “in” and list of values
+
+This first version of a for loop iterates over a list of objects. The syntax is (don't type this):
+
+```
+for varname in list
+do
+	command1
+	command2
+	..
+done
+```
+
+In the above syntax:
+
+- `for`, `in`, `do` and `done` are keywords
+- `list` contains list of values. The list can be a variable that contains several words separated by spaces. If list is missing in the `for` statement, then it takes the positional parameter (arguments) that were passed to the shell.
+- `varname` is any Bash variable name.
+
+In this form, the `for` statement executes the commands enclosed between `do` and `done`, once for each item in the list. For example, if the list of values contains 5 items, the for loop will be executed a total of 5 times, once for each item in the list. The current item from the list will be stored in a variable `varname` each time through the loop. This `varname` can be processed in the body of the `for` loop.
+
+### Method 2: Bash For Loop using C like syntax
+
+The second form of the `for` loop is mainly used to run a set number of iterations. This similar to the `for` loop in the most programming languages, which has three expressions - initialization, condition and update. The syntax is (don't type this):
+
+```
+for (( expr1; expr2; expr3 ))
+do
+	command1
+	command2
+	..	
+done
+```
+
+In the this syntax,
+
+- Prior to the first iteration, `expr1` is evaluated. This is initializes the loop (usually to zero).
+- All the statements between `do` and `done` are executed repeatedly until the value of `expr2` is TRUE.
+- After each iteration of the loop, `expr3` is evaluated. This is usually used to increment a loop counter.
+
+The following examples shows how to use for loops in different ways. For each of these, create a new shell script, add the code, the make the script executable and run it as described above. Remember to start the script with `#!/bin/bash`:
+
+#### Static values for the list after “in” keyword
+
+In the following example, the list of values (Mon, Tue, Wed, Thu and Fri) are directly given after the keyword `in` in the bash for loop.
+
+```
+i=1
+for day in Mon Tue Wed Thu Fri
+do
+	echo "Weekday $((i++)) : $day"
+done
+```
+
+The list of values should not be separated by comma (`Mon, Tue, Wed, Thu, Fri`), as the comma will be treated as part of the value (i.e instead of `Mon`, it will use `Mon,`).
+
+Also, the list of values should not be enclosed in single or double quotes (`“Mon Tue Wed Thu Fri"`), or Bash will consider this to be a single string. 
+
+#### Variable for the list after `in` keyword
+
+Instead of providing the values directly in the for loop, you can store the values in a variable, and use the variable in the for loop after the `in` keyword, as shown in the following example.
+
+```
+i=1
+weekdays="Mon Tue Wed Thu Fri"
+for day in $weekdays
+do
+	echo "Weekday $((i++)) : $day"
+done
+```
+
+#### Get the list from the positional parameters
+
+If you don’t specify the keyword “in” followed by any list of values in the bash for loop, it will use the positional parameters (i.e the arguments that are passed to the shell script).
+
+```
+i=1
+for day
+do
+	echo "Weekday $((i++)) : $day"
+done
+```
+
+Now run this with a set of arguments (you'll need to replace *example.sh* with the name of your script):
+
+```
+./example.sh Mon Tue Wed Thu Fri
+```
+
+#### Using Unix command output to provide list values
+
+You can use the output of any UNIX / Linux command as list of values to the for loop by enclosing the command in back-ticks (\`, \`). Here we loop through and print the output of the `users` command:
+
+```
+i=1
+for username in `users`
+do
+	echo "Username $((i++)) : $username"
+done
+```
+
+And run this
+
+```
+./example.sh
+```
+
+Note that you can use the Unix pipe to then post-process this. To count the number of users:
+
+```
+./example.sh | wc -l
+```
+
+To find yourself on the list (replace uID with your number:
+
+```
+./example.sh | grep unID
+```
+
+#### Loop through files and directories in a for loop
+
+To loop through files and directories under a specific directory, just `cd` to that directory within the script, and give `*` in the for loop as shown below. The following example will list everything in your home directory (basically the same as running `ls` but much less efficient):
+
+```
+i=1
+cd ~
+for item in *
+do
+	echo "Item $((i++)) : $item"
+done
+```
+
+Usage of `*` in the bash for loop is similar to the file wildcards that can be used at the linux command line.
+
+#### Bash for loop using C program syntax
+
+This example uses the 2nd method of bash for loop, which is similar to the C for loop syntax. The following example generates 5 random number using the bash C-style for loop.
+
+```
+for (( i=1; i <= 5; i++ ))
+do
+	echo "Random number $i: $RANDOM"
+done
+```
+
+#### Range of numbers after “in” keyword
+
+You can loop through using range of numbers in the for loop `in` using brace expansion.
+
+The following example loops through 10 times using the values 1 through 10.
+
+```
+for num in {1..10}
+do
+	echo "Number: $num"
+done
+```
+
+#### Range of numbers with increments after “in” keyword
+
+The following example loops through 5 times using the values 1 through 10, with an increment of 2. i.e It starts with 1, and keeps incrementing by 2, until it reaches 10.
+
+```
+for num in {1..10..2}
+do
+	echo "Number: $num"
+done
+```
+
+### GRASS example
+
+This is a simple example that loops through a set series of raster layers, displays them and gives some basic information about the range of values. The file list could be expanded to include more layers, or the output of `g.list` to give all (or some) of the rasters in the database:
+
+```
+#!/bin/bash  
+
+d.erase
+
+filelist="lsat7_2002_10 lsat7_2002_20 lsat7_2002_30"
+
+for file in $filelist
+do
+	echo "$file"
+	g.region rast=$file
+	d.rast $file
+	r.describe -r $file
+done
+```
+
+Save the file as a script (e.g. *forexample.sh*), change the permissions and run, remembering to give a raster layer as an argument:
+
+```
+./forexample.sh
+```
+
+Let's extend this a little further, and extract some information from each image. First, rather than using a list of layers, we can generate a list of all raster layers using `g.list`, then pipe this through `grep` to get only those matching `*lsat*`
+
+Next, we again display the file, then call `r.stats` to get some summary statistics. By using the `-c` flag, this will calculate the count of pixels with a certain reflectance value (these are 8-bit images). We then use the `>` redirection symbol to save this output into a text file. Note that the output file name is a little complex - this concatenates the variable holding the current layer name (`$file`) with the extension `.txt`.
+
+
+```
+#!/bin/bash  
+
+d.erase
+
+for file in `g.list rast | grep 'lsat'`
+do
+	echo "$file"
+	g.region rast=$file
+	d.rast $file
+  r.stats -c input=$file > ${file}.txt
+done
+```

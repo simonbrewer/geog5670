@@ -1,0 +1,647 @@
+---
+title: 'GEOG 5670/6670 Lab 08: Vector Data in GRASS II'
+author: | 
+  | Simon Brewer
+  | Geography Department
+  | University of Utah
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    fig_caption: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(png)
+library(grid)
+```
+
+## Objectives
+
+The objectives for this lab are to introduce you to:
+
+ 1. continue working with vector data types in GRASS
+ 2. introduce queries with vector data
+ 3. look at network functions
+ 4. Explore the interpolation options in GRASS
+ 5. introduce tools for working with lidar data
+ 
+The examples given here are modified from chapter 6 of the Open Source GIS book by Neteler and Mitasova (2008).  
+ 
+## GRASS Location
+
+We will be using the North Carolina state plane location (`nc_spm_08_grass7`) for the majority of today's lab. Login to the server, start GRASS
+
+```
+grass78
+```
+
+And choose the `nc_spm_08_grass7` LOCATION, and either the 'user1' or your own MAPSET. 
+
+Once this starts successfully, open a monitor to display the vector layers as we work through them:
+
+```
+d.mon start=wx0
+```
+
+## Vector data in GRASS
+Each vector layer in GRASS is stored as a set of files:
+
+- header: general information and metadata
+- geometry: coordinates of features
+- topology: relationships between features
+- history: details of map creation
+- category index: links features to attributes
+- attributes: database of attribute values
+
+The topological representation of vectors is extremely important, and, in general, the topology must be defined for all vector layers (level 2 vectors). The exceptions tend to be point data (level 1 vectors), especially large datasets, e.g. lidar. 
+
+## Vector layer attributes
+
+GRASS can be connected to various database management systems to manage vector attributes, including DBF, SQLite, PostgreSQL, MySQL, etc. 
+
+### Map-table connections
+
+By default, the SQLite driver is used, but has limited SQL functionality. The driver used for a given table can be displayed using `v.db.connect` with the '-p' flag:
+
+```
+v.db.connect -p schools_wake
+```
+
+And the variable names and types can be shown:
+
+```
+v.info -c schools_wake
+```
+
+And use `db.tables` to see which tables are linked in the current mapset:
+
+```
+db.tables -p
+```
+
+We can now use the connection to get a summary description of the table for this layer (make sure you have this vector layer):
+	
+```
+db.describe -c schools_circle
+```
+
+### Attribute table management
+
+For any vector layer now connected through the database, the attribute table can be managed using tools derived from standard SQL commands:
+
+- `v.db.addcol`: add a column
+- `v.db.dropcol`: delete a column
+- `v.db.renamecol`: rename a column
+- `v.db.update`: update a column
+- `v.db.addtable`: add a new table to a vector layer
+- `v.db.droptable`: delete a table
+
+### Example SQL queries
+
+Before running some examples, let's make a copy of one of the vector layer to test:
+
+```
+g.copy vect=boundary_municp,mybnd_mun
+```
+
+There are two modules that run SQL queries on vector data: `db.select` and `v.db.select`. These have slightly different syntax for passing SQL code, but the main difference is that the first can only operate on layers in the current mapset, but the second can query any mapset. For `db.select`, we can pipe the query to the module using `echo`. For example, to find all municipal boundaries in Wake county:
+
+```
+echo "SELECT * FROM mybnd_mun WHERE COUNTY = 'WAKE'" | db.select input=-
+```
+
+Note that the whole SQL query is between double quotations (") and the strings used in the query are between single quotations ('). 
+
+Try the same query with `v.db.select`:
+
+```
+v.db.select mybnd_mun where="COUNTY='WAKE'"
+```
+
+A query with multiple conditions:
+
+```
+v.db.select mybnd_mun where="COUNTY='WAKE' AND CENSUSTYPE <> 'Village'"
+```
+
+Pattern matching:
+
+```
+v.db.select mybnd_mun where="MB_NAME LIKE 'Wake%'"
+```
+
+Selection from a list: 
+
+```
+v.db.select myschools where="ADDRCITY IN ('Apex', 'Cary')"
+```
+
+Selection by attributes:
+
+```
+v.db.select schools_wake where="CAPACITYTO > 500"
+```
+
+The output from any of these is shown on the screen. We can use the redirect function to save this into a file:
+
+```
+v.db.select schools_wake where="CAPACITYTO > 500" > schools_attr.txt
+```
+
+More usefully, we can replace the '|' field separators in the output to create a csv file, which we can then import into a spreadsheet. To do this, we use the stream editor `sed`, which does replacement on the fly with the output of the module:
+
+```
+v.db.select schools_wake where="CAPACITYTO > 500" | sed 's/|/,/g'
+```
+
+The parameters for `sed` are as follows: the `s` indicates find and replace, the `/` slashes separate out the search term and the replacement term, and the `g` indicates to replace each occurrence on a line (not just the first). If we now redirect to a file, we can then import this into Excel (or your spreadsheet software of choice):
+		
+```
+v.db.select schools_wake where="CAPACITYTO > 500" | sed 's/|/,/g' > schools_attr.csv
+```	
+Alternatively, we can use `v.extract` to create a new vector layer with only the selected features:
+
+```
+g.region vect=schools_wake
+d.vect schools_wake icon=basic/marker size=10
+v.extract schools_wake where="CAPACITYTO > 500" out=big_schools_wake
+d.vect big_schools_wake icon=basic/marker size=20 fcol=green
+```
+
+More information on the available GRASS map icons (and how to add your own) can be found [here][iconID].
+
+We can also change values directly in the attribute table using `v.db.update`. Here we first take the major roads vector layer and make a copy. Then we add a column for the speed limit (note that we specify the variable type), and increase the speed limit only for multilane roads: 
+
+```
+g.region vect=roadsmajor
+g.copy vect=roadsmajor,myroadsmajor
+v.db.addcolumn myroadsmajor col="speedmax double precision"
+v.db.update myroadsmajor col=speedmax value=55
+v.db.update myroadsmajor col=speedmax where="MULTILANE='yes'" value="speedmax+15"
+v.db.select myroadsmajor
+```
+
+And display the output
+
+```
+d.vect myroadsmajor
+d.vect myroadsmajor where="speedmax=70" col=red width=2
+```
+
+## Network analysis
+
+There are several tools for network analysis in GRASS. Here we demonstrate some basic usages. These are both fairly long exercises, and it would be a good idea to create a bash script file to store and run the commands. A couple of bits of advice:
+
+- You don't have to make the full script before running it. Adding a few lines, then running the script will allow you to progressively test that it works. 
+- If you re-run any part of the script that makes a new layer, you may need to add the `--overwrite` flag otherwise the command will fail
+- Remember to make your script executable (`chmod +x myscript.sh`), and that 
+
+We start by extracting a small region of our area (to speed up the calculations):
+
+### Example 1: distances across a network from a point
+
+```
+v.extract census_wake2000 out=census_raleigh list=1-33
+g.region vect=census_raleigh
+d.vect -c census_raleigh
+```
+Now select only the roads overlapped by the remaining polygons:
+
+```
+v.select ainput=streets_wake binput=census_raleigh output=streets_raleigh operator=overlap
+d.vect streets_raleigh
+```
+	
+We add a starting point to the map, a hotel located at -78.638259, 35.77465 according to a GPS. Start by convert these coordinates to projection of the LOCATION
+
+```
+echo "-78.638259 35.77465" | m.proj -i 
+```
+
+Which should give you the following output
+
+> 642306.78|224657.80|0.00
+
+And use the results to make a new feature with the hotel. Here we make use of two extra flags in `m.proj`: '-g' which formats the coordinates for input to GRASS and '--q' which prints only the new coordinates:
+
+```
+echo "-78.638259 35.77465" | m.proj -g -i --q input=- | v.in.ascii out=myhotel
+d.vect myhotel icon=basic/pushpin size=20
+```
+
+Use `d.zoom` to zoom in on the hotel's location. You'll notice that it is not presently connected to the road network. 
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/hotel1.png")
+grid.raster(img)
+```
+
+We can add this connection using `v.net`, which takes as inputs an existing network, one or more points and connects them to the closest network feature within a defined radius (threshold). This threshold could be estimated by using `v.distance` to calculate the minimum distance between the hotel location and the streets.
+
+```
+v.net streets_raleigh points=myhotel out=streets_net op=connect thresh=30
+d.vect streets_net
+d.vect myhotel icon=basic/pushpin size=20
+```
+As a final preparation step, we add costs to the streets for walking, where faster (and presumably busier) streets have higher cost:
+
+```
+v.db.addcolumn streets_net col="navcost double precision"
+v.db.update streets_net col=navcost val=100 where="SPEED <= 25"	
+v.db.update streets_net col=navcost val=100000 where="SPEED > 25"	
+d.erase
+d.vect streets_net col=green where="navcost=100"
+d.vect streets_net col=red where="navcost=100000"
+```
+
+Now finally, we calculate equal distances from the hotel, taking into account the speeds as costs using `v.net.iso`:
+
+```
+v.net.iso input=streets_net output=streets_net_iso center_cats=1-1000000 costs=200,400,600,800
+```
+
+The module makes a set of categories with divisions given by the `costs` parameters. The `center_cats` parameter defines the range of values to be used in creating the categories. Now visualize the output:
+
+```
+d.erase
+d.vect streets_net_iso col=green cats=1 width=4
+d.vect streets_net_iso col=yellow cats=2 width=3
+d.vect streets_net_iso col=orange cats=3 width=3
+d.vect streets_net_iso col=red cats=4 width=2
+d.vect streets_net_iso col=grey cats=5 width=1
+```
+
+Finally, we can use the vector layer `geonames_wake` to look for parks within reasonable walking distance of the hotel (you may need to use the previous lab to understand all the parameters used here):
+
+```
+d.vect geonames_wake where="FEATURECOD='PRK'" attribute_column=NAME label_bgcolor=white label_bcolor=black font=romans                                
+```
+
+### Example 2: Shortest path distance
+
+We will use the same street network to calculate the distance between two hospitals, by distance and time. This again is a fairly long set of steps, so I'd recommend making a new bash script to run this. Start by showing the road network and the hospital locations:
+
+```
+g.region vect=streets_net
+d.erase
+d.vect streets_net col=grey
+d.vect hospitals fcol=red icon=basic/diamond
+d.vect hospitals attribute_column=NAME label_bgcolor=white label_bcolor=black 
+```
+
+As in the previous example, we now need to attach the hospitals to the network
+
+```
+v.net streets_raleigh points=hospitals out=streets_hnet op=connect thresh=200 
+```
+
+We next add a new, third layer to the `streets_nnet` vector to store costs associated with travel. Note that GRASS allows you to have different attribute tables attached to the same vector layer, which is useful for storing different information types. We do this in two steps, first by creating a category for each individual road, then adding a blank attribute table to hold information for cost estimates:
+
+```
+v.category in=streets_hnet out=streets_hnet_time opt=add cat=1 layer=3 type=line --overwrite
+v.db.addtable streets_hnet_time layer=3 col="cat integer,length double precision,speed integer,cost double precision,bcost double precision"
+```
+
+And we then add travel time as a cost to each street segment. First, we'll fill out the attribute table that we just made. We'll use the `v.to.db` function to first copy the speed limit information from layer 1 to the `speed` column in layer 3. Then the same function to add distance in miles to the `length` column. 
+
+```
+v.to.db streets_hnet_time layer=3 qlayer=1 opt=query qcolumn=SPEED columns=speed
+v.to.db streets_hnet_time layer=3 type=line option=length col=length unit=miles
+```
+
+One issue that we have is that the new segments that were added to join the hospitals to the street network do not have any speed information (as we just created them). To check, look at the output of `v.univar` for this attribute, which shows several NULL values:
+
+```
+v.univar map=streets_hnet_time layer=3 column=speed      
+```
+
+We can replace these using `v.db.update`. As we can assume these are local roads, we set the speed limit to 25 mph. Note the SQL query to make sure that we only replace the NULL values. 
+
+```
+v.db.update streets_hnet_time layer=3 where="speed IS NULL" column=speed value=25
+```
+
+Now, we can calculate the travel time in minutes as $length / speed \times 60$. We calculate here both the forward (`cost`) and reverse (`bcost`) travel time, although these will be the same as we are not accounting for one-way travel. 
+
+```
+v.db.update streets_hnet_time column=cost value="(length / speed) * 60" layer=3
+v.db.update streets_hnet_time column=bcost value="(length / speed) * 60" layer=3
+```
+
+To calculate the paths, we need to know the start and end point. Here, we'll use the categories representing the two hospitals. These are inherited from the original hospital layer, so we can query that layer to get the categories. The start hospital is Dorothea Dix (cat `5`):
+
+```
+v.db.select hospitals col=cat where="NAME LIKE 'Dorothea%'"
+```
+
+And the destination is the Rex Hospital, which is category `8`. 
+
+```
+v.db.select hospitals col=cat where="NAME LIKE 'Rex%'"
+```
+
+We now use these as input to `v.net.path` together with the street network to get the shortest part, and the cost column. We pipe the original and destination node using `echo`. Note that you could also use a file with multiple start and end points, one pair per line. GRASS also has a function `v.net.allpairs` to calculate paths between all possible pairs of nodes. 
+
+```
+echo "1 5 8" | v.net.path streets_hnet_time arc_layer=3 node_layer=2 out=mypath d.vect streets_hnet col=gray
+d.vect mypath col=red width=4
+```
+
+Finally, we do the same, but now include the travel costs. 
+
+```
+echo "1 5 8" | v.net.path streets_hnet_time arc_layer=3 node_layer=2 arc_column=cost arc_backward_column=bcost out=mypath_time --overwrite
+d.vect mypath_time col=green width=4
+```
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/paths.png")
+grid.raster(img)
+```
+
+[Other functions][netID] are available to calculate:
+
+- network allocation (`v.net.alloc`)
+- minimum spanning trees (`v.net.spanningtree`)
+- Steiner trees (`v.net.steiner`)
+- travelling salesman problem (`v.net.salesman`)
+- visibility graph construction (`v.net.visibility`)
+
+## Interpolation from point data
+
+GRASS has a set of functions for interpolating from point data to continuous surfaces. We will look at these using a set of randomly sampled elevation data. Start by setting the region to a subregion. This uses a predefined regional description rather than a raster or vector layer:
+
+```
+g.region rural_1m
+```
+
+Now generate a set of random points in the region (`v.random`), add a table and column to store elevations (`v.db.addtable`), and sample from the lidar derived elevations at the point locations and store this in the table (`v.what.rast`):
+
+```
+v.random output=elev_rand n=6000
+v.db.addtable elev_rand col="elev double" 
+v.what.rast map=elev_rand raster=elev_lid792_1m col=elev
+d.erase
+d.vect elev_rand
+```
+
+And test to make sure that the elevations have been stored:
+
+```
+v.db.select elev_rand | head
+```
+
+### Voronoi polygons
+
+This method (`v.voronoi`) interpolates from point data to polygons, which define the area closest to each point. This was traditionally used with survey data to create elevation models, but is generally more suitable for use with categorical data.
+
+```
+v.voronoi input=elev_rand out=elev_int_vor
+d.vect elev_int_vor
+d.vect elev_rand icon=basic/circle fcol=black size=2
+```
+
+And to shade this by the elevation value:
+```
+d.vect.thematic elev_int_vor column=elev nint=10 color=cyan-yellow
+d.vect.thematic map=elev_int_vor column=elev algorithm=int \
+  nclasses=5 colors=0:195:176,39:255:0,251:253:0,242:127:11,193:126:60 \
+  legend_title="Average elevation (m)"
+```
+
+We can convert this to a raster surface to compare it to the original surface:
+
+```
+v.to.rast elev_int_vor out=elev_int_vor use=attr attribute_column=elev
+r.colors elev_int_vor rast=elev_lid792_1m
+d.erase
+d.rast elev_int_vor
+```
+
+While the interpolation captures all the major gradients, the local detail is restricted by the resolution of the original sample data. 
+
+### Inverse distance weighting
+
+In this method (`v.surf.idw`), a value is calculated for each pixel of a raster as a weighted average of a set number of closest points. By default, the weights are the inverse square of distance and the number of points is 12, although these can be modified. Note that we need to specify which column is used in the interpolation. 
+
+```
+v.surf.idw elev_rand out=elev_int_idw col=elev
+r.colors elev_int_idw rast=elev_lid792_1m
+d.rast elev_int_idw
+```
+
+While this results in a much more continuous surface than the polygon approach, the results contain a large amount of noise. This can be shown by looking at the aspect calculated from the raster output
+
+```
+r.slope.aspect elev_int_idw aspect=asp_int_idw
+d.rast asp_int_idw
+```
+
+### Splines
+
+Functions are also available for the interpolation of point data using thin plate splines. These include `v.surf.rst` for 2D points, and `v.vol.rst` for 3D points (a 4D version is in development). We'll use the 2D version with the randomly generated points. 
+
+```
+v.surf.rst inout=elev_rand elevation=elev_int_rst zcol=elev aspect=asp_int_rst &
+```
+
+This module will calculate topographic parameters in addition to interpolating the elevation (here we only output the aspect). The `&` at the end of the line runs the command in the background. As the interpolation can take some time (especially for large datasets), this allows you to run other commands while waiting for it to finish. When the message appears that the interpolation is complete, hit [Enter] to continue. 
+
+```
+r.colors elev_int_rst rast=elev_lid792_1m
+d.rast elev_int_rst
+```
+
+The resulting interpolation is much smoother than the other methods, with less noise:
+
+```
+d.rast asp_int_rst
+```	
+
+There are a number of parameters that can change the behavior of the splines. Two of the most important are:
+
+- *tension* controls the 'stiffness' of the interpolated surface. Lower values result in a surface close to a stiff plate and high values give an elastic surface (default = 40)
+- *smooth* controls the amount of deviation between the surface and points. At zero, the surface has to pass through each point, while higher values relax this. This is useful to avoid over-interpolation due to noise in the input data
+
+The help pages for `v.surf.rst` and `v.vol.rst` give further information on the available parameters for these functions. 
+
+## Lidar data example
+
+We have already used an example lidar dataset in previous labs. We will use this again here to illustrate some of the tools for working with this data in GRASS. 
+
+If you have changed the region from the previous example, reset it to the smaller area to limit the number of points to import:
+
+```
+g.region rural_1m
+```	
+And import the data using `v.in.ascii`:
+
+```
+v.in.ascii -ztbr BE3720079200WC20020829m.txt out=lidar_bg z=3
+```
+
+The flags 'ztbr' tell the module that 1) this is 3D data; 2) not to build an attribute table; 3) not to build a topology; 4) to limit the points to the current region
+
+```
+d.vect lidar_bg icon=basic/circle fcol=green
+```
+
+### High resolution DEM from lidar
+
+First, use the spline interpolation module to calculate a DEM (the '-z' flag tells the module to use the z-coordinate for interpolation).
+
+```
+v.surf.rst lidar_bg elevation=elev_lidar_bg aspect=asp_lidar_bg
+```
+
+Plotting the resulting surfaces shows that the resulting interpolation is quite rough:
+
+```
+d.rast asp_lidar_bg
+```
+
+We can re-run the interpolation with different values for tension and smoothing to reduce this noise:
+
+```
+v.surf.rst --overwrite lidar_bg elev=elev_lidar_bg asp=asp_lidar_bg tension=15 smooth=1
+d.rast asp_lidar_bg
+```
+	
+### Multiple return lidar data
+
+#### Method 1: simple differentiation
+
+The second example using lidar data uses a pre-compiled vector layer with multiple return lidar points from a small part of the region: 
+
+```
+v.info elev_lidrural_mrpts
+```
+
+Find out where we have multiple returns:
+	
+```
+d.rast ortho_2001_t792_1m
+d.vect elev_lidrural_mrpts where="return=1" col=red size=2
+d.vect elev_lidrural_mrpts where="return=2" col=green size=3
+d.vect elev_lidrural_mrpts where="return=3" col=blue
+d.vect elev_lidrural_mrpts where="return=4" col=yellow
+```	
+We then extract the last return(s) for the DTM:
+
+```
+v.extract elev_lidrural_mrpts out=elev_lidrural_mrpts_last where="Return >= 2"
+```
+
+Now interpolate this as a raster layer and look at it:
+
+```
+v.surf.rst elev_lidrural_mrpts_last layer=0 elev=elev_lidrural_mrpts_DTM
+r.colors elev_lidrural_mrpts_DTM rast=elev_lid792_1m
+d.rast elev_lidrural_mrpts_DTM
+```
+
+DSM: extract first return(s):
+
+```
+v.extract elev_lidrural_mrpts out=elev_lidrural_mrpts_first where="Return < 2"
+```
+
+Interpolate to map and look at it:
+	
+```
+v.surf.rst elev_lidrural_mrpts_first layer=0 elev=elev_lidrural_mrpts_DSM
+r.colors elev_lidrural_mrpts_DSM rast=elev_lid792_1m
+d.rast elev_lidrural_mrpts_DSM
+```
+
+#### Method 2: using lidar tools
+
+We can also generate surfaces from Lidar data with greater controls by using the series of tools: `v.lidar.edgedetect`, `v.lidar.growing` and `v.lidar.correction`. See Mitasova et al. (2009) for further details.
+
+This is a fairly complex method to do this, broken down into a series of steps as follows:
+
+- To begin with, the lidar point clouds (first and last return) are imported with `v.in.ascii` [we don't need to do this here]
+- We select out the first and last returns with `v.extract`
+- Outlier detection is done with `v.outlier` on both first and last return data 
+- Then, with `v.lidar.edgedetection`, edges are detected from last return data
+- Buildings are generated by `v.lidar.growing` from detected edges
+- The resulting data are post-processed with `v.lidar.correction`
+- Finally, the DTM and DSM are generated with `v.surf.bspline`, a bicubic spline interpolation
+
+NB for `v.outlier`, `v.lidar.edgedetection` and `v.surf.bspline`, one spline steps equates to 1m. It is recommended as a starting point that the choice of spline step is roughly 3 or 4 times the planimetric resolution (potential grid resolution) of your data. Experiment from there to obtain better results.
+	
+```
+v.extract elev_lidrural_mrpts out=elev_lidfirst_pts where="return = 1"
+v.extract elev_lidrural_mrpts out=elev_lidlast_pts  where="return >= 2"
+d.vect elev_lidfirst_pts col=red
+d.vect elev_lidlast_pts col=green
+```
+
+We now detect outliers and create a map of clean and outlier points for the first return. The function `v.outlier` fits a basic spline function through the points at a low resolution (10m by default). Any points which deviate by more than a given threshold in meters (`threshold`), is classified as an outlier:
+
+```
+v.outlier elev_lidfirst_pts output=elev_lidfirst_clean outlier=elev_lidfirst_outl threshold=25
+d.erase
+d.vect elev_lidfirst_clean size=2
+d.vect elev_lidfirst_outl col=red
+```
+You may want to retry the outlier detection with a different threshold value. 
+
+Now do the same with the second return:
+
+```
+v.outlier elev_lidlast_pts output=elev_lidlast_clean outlier=elev_lidlast_outl threshold=25
+d.erase
+d.vect elev_lidlast_clean size=2
+d.vect elev_lidlast_outl col=red
+```
+
+Now we do edge detection from the cleaned last return to find the building and vegetation outlines. Edge detection is done by fitting two spline surfaces to the points. The  first is tightly fit to the points to capture the form of the 3D objects. the second is fit very loosely to the points to simulate the curvature of the terrain. The intersection between these two surfaces is then used to class points as feature, terrain or other.
+
+```
+v.lidar.edgedetection elev_lidlast_clean out=elev_lidlast_edges
+```
+
+And then buildings and vegetation are generated from detected edges:
+
+```
+v.lidar.growing elev_lidlast_edges out=elev_lidlast_grow first=elev_lidfirst_clean
+```
+
+This module uses the edges to identify the footprint of each object (feature) on the landscape. The output splits the returns into object or terrain and as single or double pulse. 
+
+Finally, the `v.lidar.correction` module is used to separate out the two types of surfaces. This needs to be iterated at least once to obtain the best separation. The final output consists of two vector layers, the DSM and the DTM:
+	
+```
+v.lidar.correction elev_lidlast_grow out=elev_lidlast_corr1 terrain=elev_lidlast_terr1
+v.lidar.correction elev_lidlast_corr1 out=elev_lid_dsm terrain=elev_lid_dtm
+```
+
+The final output can be interpolated to a surface for visualization. Here, we use another spline interpolator (based on bicubic spline). This module requires a parameter (lambda) which controls the flexibility of the spline. 
+
+In order to estimate this parameter, we run the spline module with the output data using the '-c' flag. This performs cross-validation for a set of different values of lambda, and we can the select the value which gives the lowest error (rms):
+
+```
+v.surf.bspline -c elev_lid_dsm ew_step=100 ns_step=100 method=bicubic
+v.surf.bspline -c elev_lid_dtm ew_step=100 ns_step=100 method=bilinear
+```
+
+We now run the interpolator with the original data and the selected lambda. The output is a raster layer containing the DSM and DTM
+
+```
+v.surf.bspline elev_lid_dsm raster=lidar_dsm lambda=0.05 method=bicubic ew_step=10 ns_step=10
+v.surf.bspline elev_lid_dtm raster=lidar_dtm lambda=0.01 method=bilinear ew_step=10 ns_step=10
+ 
+d.rast lidar_dsm
+d.rast lidar_dtm
+r.mapcalc "lidar_diff = lidar_dsm - lidar_dtm"
+d.rast lidar_diff
+```
+
+Mitasova, H, Mitas, L. & Harmon, R., 2005. Simultaneous spline approximation and topographic analysis for lidar elevation data in open-source GIS. Geoscience and Remote Sensing Letters, IEEE, 2(4), pp.379, 375
+
+[iconID]: https://grasswiki.osgeo.org/wiki/IconSymbols
+[netID]: http://grasswiki.osgeo.org/wiki/Vector_network_analysis

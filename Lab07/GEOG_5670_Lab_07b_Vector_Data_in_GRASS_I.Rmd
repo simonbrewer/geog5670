@@ -1,0 +1,550 @@
+---
+title: 'GEOG 5670/6670 Lab 07b: Vector Data in GRASS I'
+author: | 
+  | Simon Brewer
+  | Geography Department
+  | University of Utah
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    fig_caption: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(png)
+library(grid)
+```
+
+## Objectives
+
+The objectives for this lab are to introduce you to:
+
+ 1. introduce vector data types in GRASS
+ 2. review import and export functions for vector data
+ 3. perform some basic vector analysis
+ 
+The examples given here are modified from chapters 4 and 6 of the Open Source GIS book by Neteler and Mitasova (2008).  
+ 
+### Data files
+
+You will need the following files from Canvas for today's lab (all contained in *lab7_data.zip*)
+
+- *gslnc.zip*: a compressed shapefile with soil data
+- *newfacilityB.txt*: a text file containing set of points describing the outline of a building
+- *BE3720079200WC20020829m.txt*: a set of lidar points (you should have this from a previous lab)
+
+As a reminder, you will need to move these to the CHPC server, if you are running GRASS there. 
+ 
+## GRASS Location
+
+We will be using the North Carolina state plane location (`nc_spm_08_grass7`) for the majority of today's lab. Start GRASS
+
+```
+grass
+```
+	
+And choose the `nc_spm_08_grass7` LOCATION, and either the 'user1' or your own MAPSET. 
+
+Once this starts successfully, open a monitor to display the raster layers as we work through them:
+
+```
+d.mon start=wx0
+```
+
+## Vector data in GRASS
+
+Each vector layer in GRASS is stored as a set of files:
+
+- header: general information and metadata
+- geometry: coordinates of features
+- topology: relationships between features
+- history: details of map creation
+- category index: links features to attributes
+- attributes: database of attribute values
+
+The topological representation of vectors is extremely important, and, in general, the topology must be defined for all vector layers (level 2 vectors). The exceptions tend to be point data (level 1 vectors), especially large datasets, e.g. lidar. 
+
+### Attributes
+
+Attribute data are stored in a database management system (DBMS). By default, the SQLite driver is used, but there are a set of functions that we will look at later that provide access to most SQL databases (postgreSQL, MySQL, etc). 
+
+## Import and export
+
+### Import
+
+Importation of vector data is usually carried out using `v.in.ogr`, which uses the OGR library set to read (and write) multiple formats, including shapefiles, DGN, SDTS, PostGIS and TIGER. 
+
+#### Shapefiles
+
+For example, the file *gslnc.zip* contains a shapefile describing the soils of North Carolina. You can unzip this on the CHPC server using `unzip`:
+
+```
+unzip gslnc.zip
+```
+
+And import it into our dataset using `v.in.ogr`. First we set the region, then import the file. The `spatial` argument allows us to restrict the import to a subregion defined by the vertical and horizontal limits. 
+
+```
+g.region swwake_10m -p
+v.in.ogr gslnc.shp out=soils_nc spatial=630000,215000,645000,228500
+```
+
+The topology is built during the importag.region swwake_10m -p
+v.in.ogr gslnc.shp out=soils_nc spatial=630000,215000,645000,228500tion. Other useful parameters during import are `min_area`, which allows you to select the minimum size of features to be imported and `snap`, which can be used to force polygons to share boundaries. 
+
+#### ASCII point data
+
+The file *newfacilityB.txt* contains a set of points describing the outline of a building in the standard GRASS ASCII format. The contents of the file can be examined by using `less`. Note the first line is a header, where 'B' indicates that this is boundary data, and the '5' indicates that there are 5 vertices. The coordinates of these are given on the next five lines, and the category number is given on the final line. This can be imported as follows:
+
+```
+v.in.ascii -n input=newfacilityB.txt out=my_facility format=standard
+```
+
+The `format=standard` indicates that the file has a standard GRASS ASCII layout, and the flag `-n` indicates that there is no general header in the file.
+
+```
+d.rast ortho_2001_t792_1m
+d.vect my_facility
+```
+
+The same function can be used with ASCII point data that are not in the GRASS format. 
+
+```
+v.in.ascii -z -t -b input=BE3720079200WC20020829m.txt output=mylidarpnts z=3
+```
+The flags let GRASS know that this data is 3D (z), there is no attribute table (t) and to NOT build the topology (b) - mainly to save time. The final parameter gives the column number of the z-coordinate.
+
+```
+d.rast ortho_2001_t792_1m 
+d.vect mylidarpnts size=1 col=yellow
+```
+
+### Exporting vector layers
+
+#### Export to OGR formats
+
+The module `v.out.ogr` provides output into OGR format files, including to databases. We will just look at some simple examples here, and return to this when we look more closely at the links between GRASS and other DBMS. 
+
+To export the layer showing the main roads as a Shapefile:
+
+```
+g.region swwake_10m
+d.vect roadsmajor
+v.out.ogr -e roadsmajor output=roadsmajor type=line format=ESRI_Shapefile
+```
+
+Note that we specify the vector type (line) and the format. The flag '-e' writes a *.prj file with the projection information into the DSN. 
+
+```
+ls roadmajor
+```
+
+Simialrly, to export the school layer into a CSV file:
+
+```
+v.out.ogr schools output=schools type=point format=CSV
+ls schools/
+less schools/schools.csv
+```
+#### Export to GRASS ASCIIExport is also possible in the GRASS standard format:
+
+```
+v.out.ascii roadsmajor out=roadsmajor.asc format=standard
+```
+
+#### Export to SVG
+
+Scalable vector graphics are a useful format for web applications and graphical manipulation programs:
+
+```
+v.out.svg census_wake2000 out=census_wake2000.svg type=poly attrib=TRACTID
+```	
+## Working with vector layers in GRASS
+
+### Displaying vectors
+
+The basic function for displaying vector layers is `d.vect`, which works in a very similar way to `d.rast`, except that we do not need to worry about overlays:
+
+```
+g.region swwake_10m
+d.erase
+```	
+Display the stream layer (from the PERMANENT mapset) as blue lines:
+
+```
+d.vect streams@PERMANENT col=blue
+```	
+
+Add the road network:
+
+```
+d.vect streets_wake
+```	
+
+Show the location of overpasses, using the bridge icon with scaled up markers (the list of icons can be shown by type `d.vect --help`):
+
+```
+d.vect overpasses icon=extra/bridge size=15 fcol=red
+```	
+Polygons are shown by default as a filled poygon and centroid, but no color. 
+
+```
+d.vect soils_wake size=2
+```
+
+You should that by default, GRASS plots both the polygon and the border. We can show only the area as follows (the '-c' flag adds random colors):
+ 
+```
+d.vect -c soils_wake type=area
+```
+
+The attributes for a given layer may also be displayed. This will plot the census tract ID (from the attribute column `TRACTID`) as labels:
+
+```
+d.vect -c census_wake2000 disp=shape attribute_col=TRACTID size=5, lcol=black
+```
+
+We can further use attributes to produce thematic maps where features are colored or sized by some value, using `d.vect.thematic`. First we produce a map of census blocks in Wake county, colored by number of households:
+
+```
+d.rast elevation  
+d.vect.thematic map=schools_wake@PERMANENT column=CORECAPACI algorithm=std \
+  nclasses=3 colors=149:203:255,45:143:240,0:81:161 icon=basic/circle size=15 \
+  legend_title="School capacity"
+d.legend.vect -b at=2,80 font=Sans symbol_size=25
+```
+
+A further module for displaying vector data is `d.vect.chart`. Here we use it to produce a barchart of monthly precipitation values for the whole of North Carolina (the `scale` parameter can be used to adjust the height):
+
+```
+g.region vector=nc_state -p
+d.vect nc_state
+d.vect.chart precip_30ynormals chart_type=bar columns=nov,dec,jan,feb -l scale=.15
+```
+
+Alternatively, if you'd like to disappoint Edward Tufte, you can make 3D pie charts
+ 
+```
+d.erase
+d.vect nc_state
+d.vect.chart -l -3 precip_30ynormals chart_type=pie columns=nov,dec,jan,feb scale=.15
+```
+	
+## Vector map queries and statistics
+
+`v.report` will returns a list of vector attributes and some summary description, here area. Note that the map type (line or area) needs to be specified:
+
+```
+v.report zipcodes_wake option=area units=hectares
+```	
+
+Vector layers can be queried interactively using `d.what.vect`:
+	
+```
+g.region vect=zipcodes_wake
+d.erase
+d.vect -c census_wake2000 type=boundary
+d.what.vect zipcodes_wake,census_wake2000
+``` 
+Alternatively, the layers can be queried using selected points:
+
+```
+v.what -a censusblk_swwake coordinates=636982.5,218057.8
+```
+
+If the locations that we want to use to make the query exist as a vector layer in GRASS, then we can use `v.what.vect` to make the query and store the results in the vector layer with the locations. Here, we will use this method to find overpasses located on a particular geological unit. Start by making a copy of the overpass layer to allow modifications:
+
+```
+g.copy vect=overpasses,myoverpasses
+```
+
+Now we add a new column to our new layer, with the name 'geology' and with a data type and size (we'll look more at DB operations later):
+
+```
+v.db.addcolumn myoverpasses columns="geology varchar(10)"
+```
+
+We can now query the geology layer, using this vector layer as locations. The inputs are 'qvect': the layer to be queried; 'qcolumn': the column name in the query layer; 'column': the column where the values will be stored:
+
+```
+v.what.vect myoverpasses query_map=geology column=geology query_column=GEO_NAME
+```
+
+Now produce a mpa showing the overpasses located on the geological unit 'Czig':
+
+```
+d.vect streets_wake col=grey
+d.vect myoverpasses icon=extra/bridge size=10
+d.vect myoverpasses where="geology='CZig'" fill_color=green size=10 icon=extra/bridge
+```
+
+A similar operation can be done using `v.what.rast` to get values from raster layers. 
+
+Previously, we have looked at `r.univar` as a method to calculate univariate statistics from a raster layer. `v.rast.stats` calculates univariate statistics from a raster layer, but within units defined by a vector layer.  For example, to calculate the average elevation of zip codes, start by settign the region and making a modifable copy of the zip code layer:
+
+```
+g.region vect=zipcodes_wake res=500
+g.copy vect=zipcodes_wake,myzipcodes_wake
+```	
+Now calculate univariate statistics per zip code:
+
+```
+v.rast.stats map=myzipcodes_wake raster=elev_state_500m column_prefix=elev
+```
+
+We can now see all the new values available. By default this has calculated everything, but you can selected the statistics you require with the `method` argument. Now find and plot zip codes at lower average elevation:
+
+```
+d.vect myzipcodes_wake type=boundary
+d.vect myzipcodes_wake type=area where="elev_mean<100" fill_color=green
+```
+
+## Geometry operations
+
+### Topology
+
+The topological description of any vector layer can be obtained with `v.info`, using the `-t` flag:
+
+```
+v.info -t soils_wake
+```
+
+And topology can be visualized using the 'disp' parameter in d.vect:
+
+```
+g.region rural_1m
+d.vect streets_wake disp=shape,topo
+```
+
+The labels refer to the line segments and node (n*) at the intersections. 
+
+#### Splitting lines/adding nodes
+
+Line segments can be split into smaller segments using `v.split`. Start with the railroad layer:
+
+```
+g.region swwake_10m
+d.vect railroads disp=shape,topo
+```	
+Now split this network into segments with a maximum length of 1000m
+
+```
+v.split railroads out=myrailroads_split
+d.vect myrailroads_split disp=shape,topo
+```
+
+We can then extract the nodes from this (or any other) vector layer as follows:
+
+```
+v.to.points myrailroads_split out=railroads_nodes	
+d.vect railroads
+d.vect railroads_nodes fcol=green size=10 icon=basic/marker
+```
+
+### Analysis of distance
+
+Distances between vector feature can be calculated using `v.distance`. Here, we calculate the distance between schools and roads, both in vector layers. Start by making a copy of the `schools_wake` layer in your mapset, and display this:
+
+```
+g.copy vect=schools_wake,schools
+d.vect streets_wake col=grey
+d.vect schools col=red icon=basic/marker size=12
+```
+
+Next add a column to the new `schools` layer to store the distance to road. As this is a floating point numerical value, we store it at double precision:
+
+```
+v.db.addcolumn schools columns="dist double precision"
+```
+
+Now calculate the distance from each school to the nearest street. The parameter 'upload' tells the module to calculate minimum distance and 'column' is the name of the new column to be created in the schools layer. Note that we also output a set of vectors showing the path of shortest distance:
+
+```
+v.distance from=schools_wake to=streets_wake out=connectors upload=dist col=dist
+d.vect connectors col=blue width=2
+```
+
+### Buffering
+
+The module `v.buffer` allows the calculation of buffers around any vector feature:
+
+```
+v.buffer schools out=schools_buff distance=400
+d.vect schools_buff
+d.vect schools col=red icon=basic/marker
+```
+Note that this can estimate ellipsoid buffers by specifying the minor axis distance and angle of the major axis (the `distance` argument is taken as the major axis length):
+
+```
+v.buffer --overwrite schools out=schools_buff distance=400 minordistance=250 angle=45
+d.vect schools_buff
+d.vect schools col=red icon=basic/marker
+```
+
+### Feature extraction
+`v.extract` allows the extraction of vector features using queries on their attributes. First check for column names, then extract the municipal boundary for Cary NC. 
+	
+```
+v.info -c boundary_municp
+v.extract boundary_municp out=cary where="TEXT_NAME = 'Cary'"
+g.region vect=cary
+d.vect -c cary
+```
+
+The opposite approach to this, where individual vector features are merged or dissolved into a single feature can be carried out with `v.dissolve`. Here, we take the vector layer with census tracts for Wake county, and dissolve them to leave just the county boundary, using the county ID (FIPSSTCO):
+
+```
+v.dissolve census_wake2000 out=temp col=FIPSSTCO
+d.vect census_wake2000
+d.vect temp col=red
+```
+
+### Intersection and clipping
+
+The function used here is `v.overlay`. To demonstrate this, first make a circle vector to be used for overlays:
+
+```
+g.region vect=census_wake2000
+echo "642600|224640" | v.in.ascii in=- out=mypoint
+v.buffer mypoint out=mycircle distance=10000
+d.vect census_wake2000
+d.vect mycircle fill_color=red
+```	
+
+Now overlay using an AND condition:
+
+```
+v.overlay ain=mycircle bin=census_wake2000 out=overlay_and op=and
+d.vect -c overlay_and
+```
+
+Now do the same with an OR condition:
+
+```
+v.overlay ain=mycircle bin=census_wake2000 out=overlay_or op=or
+d.vect -c overlay_or
+```	
+Note that this second operation splits polygons intersected by the circle layer. We can also use NOT or XOR conditions here. 
+
+To select points falling within a polygon, use `v.select`. Here, we select all the schools in Wake county falling within our circle:
+
+```
+v.select ain=schools bin=mycircle out=schools_circle
+d.vect schools col=grey size=12 icon=basic/marker
+d.vect schools_circle col=red size=12 icon=basic/marker
+```
+
+### Convex hull and triangulation
+The outer border of a set of points, the *convex hull* can be generated using `v.hull`. For example, to get the convex hull of schools in Wake county:
+
+```
+g.region vect=schools            
+v.hull schools out=schools_hull
+```
+
+Now compare this to the municipal boundaries:
+
+```
+d.vect boundary_municp type=boundary col=yellow
+d.vect schools_hull type=boundary col=red
+```	
+We can generate Voronoi polygons for the schools, to help show the size and shape of the neighborhood areas for each school:
+
+```
+v.voronoi schools out=schools_vor
+d.vect schools_vor type=area fcol=white col=green width=3
+d.vect schools_wake icon=basic/circle size=10 fcol=yellow
+```	
+We can also overlay streets to help assign students to their nearest school:
+
+```
+d.vect streets_wake 
+```
+
+Finally, we can calculate the Delaunay triangulation between the points, to illustrate the relationship between this and the polygons:
+
+```
+d.erase
+v.delaunay schools_wake out=schools_del
+d.vect schools_vor type=boundary col=green width=3
+d.vect schools_del type=boundary col=blue width=3
+d.vect schools_wake icon=basic/circle size=10 fcol=yellow
+```
+
+### Extruding from 2D to 3D	
+The module `v.extrude` allows 2D vector data to be extruded into a 3D object. This is useful, for example, for adding buildings to a landscape, or studying city buildup. 
+
+This module takes a 2D vector layer, and using both elevation to set the correct base height and a 'height' parameter for the height of the object. This can be set as a constant, or taken from an attribute table if available.
+
+Some care must be taken, as the 3D object obtained depends on the 2D vector object: points are extruded to 3D vertical lines, lines to 3D lines; boundaries to 3D faces; areas to volumes. In the `nc_spm_08_grass7` database there is a set of layers taken from CAD output (P079215). We will start by looking at these in two dimensions, before extruding to three. You should create a script "extrude.sh" to run these commands, as there are quite a lot... 
+
+First extract out the residential and commercial buildings into new vector layers:
+
+```
+g.region rast=el_D792_6m
+v.extract P079215 out=bldg_resid where="layer='BLDG_RESID_BL'"
+v.extract P079215 out=bldg_commer where="layer='BLDG_COMMER_BL'"
+
+d.rast el_D792_6m
+d.vect bldg_resid col=blue
+d.vect bldg_commer col=green
+```
+
+Now we will extrude these buildings to a constant height. However, as the buildings are currently simple lines, we first convert them to areas in two steps: 1) lines -> boundaries with `v.type`; 2) assignation of a centroid with `v.centroid`:
+
+```
+v.type input=bldg_resid output=tempa from_type=line to_type=boundary --o
+v.centroids input=tempa output=bldg_resid_area --o
+
+v.type input=bldg_commer output=tempa from_type=line to_type=boundary --o
+v.centroids input=tempa output=bldg_commer_area --o
+```
+
+Note that we use the flag '--o' to allow the function overwrite any existing files. This is very important if you are running, or re-running these commands from a script. 
+
+Finally extrude the buildings (10m for residential, 15m for commercial). The '-t' flag sets the base height to the elevation of the DEM 'el_D792_6m':
+
+```
+v.extrude -t bldg_resid_area out=bldg_resid_3d height=10 elev=el_D792_6m --o
+v.extrude -t bldg_commer_area out=bldg_commer_3d height=15 elev=el_D792_6m --o
+```
+
+Finally, if you now go to the GRASS GUI, you can visualize the buildings. Remove all existing layers from the layer manager, then add the following (so that they sit in this order).  
+
+- `streets_wake`
+- `bld_resid_3d`
+- `bld_commer_3d`
+- `el_D792_6m`
+
+Now switch to the 3D view, and mess around with the settings until you can see yur buildings. There is undoubtedly more to do here with colors and shading, if you have the patience. 
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/extrude.png")
+grid.raster(img)
+```
+
+## Appendix: Other formats
+GRASS has the functions for reading in GPS data (`v.in.garmin`, `v.in.gpsbabel`), and Gazetteer data (`v.in.gns`). Another common format are AutoCAD DXF files, which may be imported using `v.in.dxf`. Get the example DXF file from Canvas (P079216.DXF). This is a set of planimetry features for North Carolina, but in a different projection (State Plane in feet). In order to import this, restart GRASS and create a new location (nc_spf) using EPSG code 2264. Once done, start GRASS, and get a list of the different layers in the DXF file:
+
+```
+v.in.dxf -l P079216.DXF
+```
+
+Now import all layers into a single map (this is a 'one'):
+
+```
+v.in.dxf -1 P079216.DXF
+g.region vect=P079216
+d.vect P079216
+```
+
+Alternatively, you can import individual layers, for example the buildings:
+
+```
+v.in.dxf P079216.DXF out=bldgP079216 layer=bldg_commer_bl,bldg_resid_bl
+d.vect bldgP079216 col=red
+```
+
