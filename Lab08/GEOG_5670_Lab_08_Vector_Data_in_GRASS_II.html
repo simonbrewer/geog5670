@@ -243,7 +243,7 @@ div.tocify {
 <h4 class="author"><div class="line-block">Simon Brewer<br />
 Geography Department<br />
 University of Utah</div></h4>
-<h4 class="date">18 March, 2022</h4>
+<h4 class="date">20 March, 2022</h4>
 
 </div>
 
@@ -356,9 +356,9 @@ d.vect myroadsmajor where=&quot;speedmax=70&quot; col=red width=2</code></pre>
 <li>If you re-run any part of the script that makes a new layer, you may need to add the <code>--overwrite</code> flag otherwise the command will fail</li>
 <li>Remember to make your script executable (<code>chmod +x myscript.sh</code>), and that</li>
 </ul>
-<p>We start by extracting a small region of our area (to speed up the calculations):</p>
 <div id="example-1-distances-across-a-network-from-a-point" class="section level3">
 <h3>Example 1: distances across a network from a point</h3>
+<p>We start by extracting a small region of our area (to speed up the calculations):</p>
 <pre><code>v.extract census_wake2000 out=census_raleigh list=1-33
 g.region vect=census_raleigh
 d.vect -c census_raleigh</code></pre>
@@ -507,7 +507,7 @@ d.rast elev_int_rst</code></pre>
 <pre><code>g.region rural_1m</code></pre>
 <p>And import the data using <code>v.in.ascii</code>:</p>
 <pre><code>v.in.ascii -ztbr BE3720079200WC20020829m.txt out=lidar_bg z=3</code></pre>
-<p>The flags ‘ztbr’ tell the module that 1) this is 3D data; 2) not to build an attribute table; 3) not to build a topology; 4) to limit the points to the current region</p>
+<p>The flags <code>ztbr</code> tell the module that 1) this is 3D data; 2) not to build an attribute table; 3) not to build a topology; 4) to limit the points to the current region</p>
 <pre><code>d.vect lidar_bg icon=basic/circle fcol=green</code></pre>
 <div id="high-resolution-dem-from-lidar" class="section level3">
 <h3>High resolution DEM from lidar</h3>
