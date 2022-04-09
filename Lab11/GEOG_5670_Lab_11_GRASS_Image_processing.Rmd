@@ -1,0 +1,325 @@
+---
+title: 'GEOG 5670/6670 Lab 11: Image processing in GRASS'
+author: | 
+  | Simon Brewer
+  | Geography Department
+  | University of Utah
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    fig_caption: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(png)
+library(grid)
+```
+
+## Objectives
+
+The objectives for this lab are to introduce you to some the modules for image processing in GRASS including
+
+ 1. processing
+ 2. transformation
+ 3. fusion
+ 4. classification
+
+The examples given here are modified from the Open Source GIS book by Neteler and Mitasova (2008) and from the [GRASS wiki][id1]
+ 
+## GRASS Location
+
+We will be using the North Carolina state plane location (`nc_spm_08_grass7`) for the majority of today's lab. Start GRASS
+
+```
+grass
+```
+
+And choose the `nc_spm_08_grass7` LOCATION, and either the 'user1' or your own MAPSET. 
+
+Once this starts successfully, open a monitor to display the examples as we work through them:
+
+```
+d.mon start=wx0
+```
+
+## Image processing in GRASS
+
+Images are stored in GRASS using the raster data model (i.e. are all stored as raster layers), so all the normal raster tools can be applied. In addition, GRASS has a set of tools for processing remotely sensed images, including transformation and segmentation. The tools start with a `i.` prefix. 
+
+The North Carolina data set has a set of landsat image from 1987, 2000 and 2002. Each is named *lsatX_YEAR_BAND* where the `X` refers to landsat 5 or 7. To see these, you can list the current raster layers with `g.list rast`
+
+### Image pre-processing
+
+Remotely sensed images often require pre-processing to account for effects that might bias the values recorded. These include:
+
+- transformations between the digital numbers in the file (often 8bit) and the actual radiance at the sensor
+- atmospheric effects
+- variations from slopes in hilly regions (terrain effects)
+
+Transformations into radiance can be achieved using `r.mapcalc` and some knowledge of how the image was processed
+
+Atmospheric corrections can be made using the module `i.atcorr`. This uses the [6S model][6sID] (Second Simulation of the Satellite Signal in the Solar Spectrum) to do correction of weather and other effects. An example based on this module can be found [here][atmID].
+
+A couple of other tips (from the IRSAE course):
+
+The first step as pre-analysis for a subsequent classification could be `r.smooth.seg` to produces a smooth approximation of the data and performs discontinuity detection. 
+
+In case of panchromatic maps or limited amount of channels, it is often recommended to generate synthetic channels through texture analysis using `r.texture`.
+
+### Radiometric transformations and image enhancements
+
+`r.mapcalc` can be used to easily create various indexes built from different bands in an image, including vegetation and burned indexes. For example, the normalized difference vegetation index is 
+
+\[
+NDVI = (NIR - RED) / (NIR + RED)
+\]
+
+To create a NDVI map from the 2002 landsat data, where band 3 (`30` in the layer) is near infra-red (NIR) and 4 (`40` in the layer) is red:
+
+```
+g.region rast=lsat7_2002_10
+r.mapcalc "ndvi = 1.0 * (lsat7_2002_40 - lsat7_2002_30) / (lsat7_2002_40 + lsat7_2002_30)"
+r.colors ndvi rules=ndvi
+d.rast ndvi
+```
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/ndvi.png")
+grid.raster(img)
+```
+
+The multiplication by 1.0 ensures that the output is floating point. While the `r.mapcalc` gives you a lot of flexibility in creating your own indices, most of the standard ones are implemented in `i.vi`, including NDVI, GVI, etc. To estimate the NDVI this way, we simply specify the red and near-infrared raster layers:
+
+```
+i.vi --overwrite output=ndvi viname=ndvi red=lsat7_2002_30 nir=lsat7_2002_40
+d.rast ndvi
+```
+
+See the `i.vi` [manual page][viID] for the full set of indices, and the required layers. 
+
+### Principal component transformation
+
+Principal component analysis of remote sensed images allows complex, inter-correlated image data to be reduced to a smaller set of uncorrelated components. It can help in compressing images by removing this in higher order components, and in classification by providing uncorrelated variables to work with.
+
+In GRASS, this can be performed using `i.pca`, which requires at least two images. Here we will use it with landsat images from two time periods, then use this to carry out a simple change detection analysis.
+
+```
+i.pca in=lsat5_1987_10,lsat5_1987_20,lsat5_1987_30,lsat7_2002_10,lsat7_2002_20,lsat7_2002_30 out=pca
+d.erase
+d.rast pca.1
+```	
+
+PCA will output the same number of maps as the inputs, but with the difference that the first contains the greatest amount of variation in the data set, the second holds the largest amount of variation not explained by the first component, and so on. The first component identifies most of the variation between vegetated and non-vegetated areas. 
+
+Now plot the first three components using `d.rgb`:
+
+```
+d.rgb b=pca.1 g=pca.2 r=pca.3
+```
+
+And compare this to the original datasets (you might want to open a second monitor for this (`d.mon start=wx1`):
+
+```
+d.rgb b=lsat5_1987_10 g=lsat5_1987_20 r=lsat5_1987_30
+d.rgb b=lsat7_2002_10 g=lsat7_2002_20 r=lsat7_2002_30
+```
+
+We will use PC3 to identify regions with changes as being any value over the third quartile of that layer. 
+
+```
+r.univar -e pca.3
+r.mapcalc "changes = if(pca.3 > 134,1,null())"
+```
+
+Now vectorize and remove small area (< 4 pixels; ~7300 m2):
+
+```
+r.to.vect -s changes out=changes type=area
+v.clean changes out=major_changes tool=rmarea thresh=7300
+```
+
+And overlay the identified areas on the original image:
+
+```
+d.rgb b=lsat5_1987_10 g=lsat5_1987_20 r=lsat5_1987_30
+d.vect major_changes type=boundary col=red
+d.vect lakes fcol=blue type=area
+```
+
+Another method for transforming images is the Fourier transform, which is useful for identifying and removing striping or other forms of periodic noise. This is implemented in `i.fft` and `i.ifft` for the forward and reverse transform respectively.
+
+## Image Fusion
+
+Image fusion combines high radiometric resolution (i.e. multispectral data) with high resolution geometric data, to enhance the spatial resolution of the spectral data. This requires a high resolution panchromatic image. 
+
+A standard method to do this is the Brovey transform, which is included in the module `i.fusion.brovey`. This is not part of the standard GRASS GIS install, but is available as a GRASS extension. If this is not already available on your machine, go ahead and install it now. 
+
+We use the fusion method with the 28.5m landsat channels 2, 4 and 5 and the panchromatic ETMPAN channel (14.25m):
+
+Show the original image:
+
+```
+g.region rast=lsat7_2002_10
+d.erase
+d.rgb b=lsat7_2002_10 g=lsat7_2002_20 r=lsat7_2002_30
+```
+
+Now perform the image fusion - this resets the region resolution to the panchromatic layer:
+	
+```
+i.fusion.brovey -l ms1=lsat7_2002_10 ms2=lsat7_2002_20 ms3=lsat7_2002_30 pan=lsat7_2002_80 out=brov
+```
+
+And show the improved image:
+
+```
+g.region rast=brov.red
+d.erase
+d.rgb b=brov.blue g=brov.green r=brov.red
+```
+
+Here is a comparison of the two images:
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/brovey.png")
+grid.raster(img)
+```
+
+The module `i.his.rgb` provides an alternative fusion method. 
+
+## Thematic classification 
+
+GRASS has functions for carrying out both unsupervised and supervised (or partially supervised) classification. 
+
+### Image groups
+
+Classification (and some other function) require an image group. This is a predefined collection of layers that make up a single image. We'll create one here for the landsat 2002 data:
+
+```
+i.group group=lsat7_2002 sub=lsat7_2002 in=lsat7_2002_10,lsat7_2002_20,lsat7_2002_30,lsat7_2002_40,lsat7_2002_50,lsat7_2002_70
+```
+
+This creates both a group and subgroup that collect together all layers. The subgroup can be defined so as to consist of only a subset of the layers. 
+
+### Unsupervised classification
+
+This uses the module `i.cluster` to form clusters or groups based on the spectral properties of each pixel (each group should have similar properties). This has a number of parameters to set including the number of target clusters, the minimum separation between clusters, the threshold for cluster stability and the number of iterations to run. Here we will run it with the default settings and 20 groups:
+
+```
+i.cluster group=lsat7_2002 sub=lsat7_2002 sig=clst2002 classes=20 report=rep_clst2002.txt
+```
+
+This should converge or stabilize in about 20 iterations. It will create a text file in the current directory (*rep_clst2002.txt*), which contains a great deal of output about the final cluster set, including cluster mean and standard deviation, the stability and separation. You can examine this using `less` or `vim` or your favorite text editor:
+
+```
+less rep_clst2002.txt
+```
+
+The second step is to assign each pixel to the most suitable cluster. This is done by `i.maxlik`, which uses maximum likelihood classification to make assignments (based on the cluster characteristics). This gives two output layers: the cluster assignment and a rejection layer which indicates the confidence in the cluster assignment. In this layer, 16 confidence intervals are predefined, and the reject map is interpreted as 1 = keep and 16 = reject. 
+
+```
+i.maxlik group=lsat7_2002 sub=lsat7_2002 sig=clst2002 output=lsat2002_maxlik rej=lsat2002_maxlik_rej
+d.rast lsat2002_maxlik
+d.rast lsat2002_maxlik_rej
+```
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/classification.png")
+grid.raster(img)
+```
+
+We can use the rejection values to mask out pixels with low confidence (i.e. level 10 or higher):
+
+```
+r.mapcalc "lsat2002_maxlik_sel = if(lsat2002_maxlik_rej < 10, lsat2002_maxlik, null())"
+d.rast lsat2002_maxlik_sel
+```
+
+### Supervised classification
+
+Supervised classification can be carried out using `g.gui.iclass`, which will open an interactive monitor to select training areas, or `i.gensig` which uses training areas that are preselected. Final assignment of pixels to clusters is carried out using `i.maxlik`. 
+
+A second method is available in the module `i.smap`, which, in addition to radiometric similarity, uses proximity between pixels to improve classification. 
+
+## Image segmentation
+
+Like classification, image segmentation groups together pixels with similar characteristics to form groups. Unlike classification, image segmentation forms objects that are contiguous. In other words, if there are two discrete patches of pixels with similar values, these will belong to the same classification group, but to two different segmentation objects. There are a couple of ways to do this
+
+- Boundary methods use a change in pixel values to identify the edges of individual objects
+- Region based algorithms grow and merge objects as an iterative process
+
+The current algorithm implemented in GRASS is a region growing and merging method. Starting with all pixels considered as individual objects or *segments*, the algorithm sequentially examines all current segments in the raster map. For each segment, the similarity between it and each of its neighbors is calculated, and segments are merged if they meet a number of criteria:
+
+- The similarity distance is smaller than to any other neighbor
+- The similarity is lower than a specified threshold. 
+
+The threshold is set between 0.0 and 1.0, where 0.0 would not merge anything, and 1.0 would merge everything into a single segment. 
+
+This process is then repeated until no further merges are made. Once finished, the module does a final pass over the image and merges small groups of pixels to their nearest large neighboring segment to remove the speckling that can occur with noisy images. The size of these groups is set with the `minsize` argument. We'll start with a very low threshold (0.02) and the default value for `minsize` (1). 
+
+```
+d.erase
+g.region raster=lsat7_2002_40
+i.segment group=lsat7_2002 output=lsat7_segs_l1 threshold=0.02
+d.rast lsat7_segs_l1
+```
+
+With this low a threshold, the segments are all very small. Try increasing this (note the `--overwrite` flag):
+
+```
+d.erase
+i.segment group=lsat7_2002 output=lsat7_segs_l1 threshold=0.1 --overwrite
+d.rast lsat7_segs_l1
+```
+
+You should start to see some recognizable units appearing. Let's increase this further, and remove some of the smaller segments:
+
+```
+d.erase
+i.segment group=lsat7_2002 output=lsat7_segs_l1 threshold=0.3 minsize=50 --overwrite
+d.rast lsat7_segs_l1
+```
+
+Once we have the final set of objects as a raster layer, you can convert to a set of polygons as follows:
+
+```
+r.to.vect input=lsat7_segs_l1 output=lsat7_segs type=area
+d.vect -c lsat7_segs
+```
+
+## Appendix: GRASS GIS extensions
+
+As GRASS is open source, it is relatively easy to develop your own modules for it. A number of these are hosted through the GRASS GIS OS Geo webpage, and you can find the current list and brief explanations [here][extID].
+
+You can also download the list of extensions through the console using the `g.extension` function:
+
+```
+g.extension -l
+```
+
+Changing the `-l` flag to a `-c` will also print a short description of each module. 
+
+To see the list of currently installed extensions:
+
+```
+g.extension -a
+```
+
+Extensions can be installed with this module by simply giving the extension name:
+
+```
+g.extension i.fusion.brovey
+```
+
+Note that this performs a local installation. i.e. it will only be available for you to use on a multi-user machine. The `-s` flag will perform a system-wide installation (this won't work on the CHPC server!). Finally, extensions can be removed with the `-f` flag. 
+
+
+[6sID]: http://6s.ltdri.org
+[id1]: https://grasswiki.osgeo.org/wiki/Image_processing
+[extID]: https://grass.osgeo.org/grass78/manuals/addons/index.html
+[atmID]: https://grasswiki.osgeo.org/wiki/Atmospheric_correction
+[viID]: https://grass.osgeo.org/grass78/manuals/i.vi.html
+
