@@ -1,0 +1,543 @@
+---
+title: 'GEOG 5670/6670 Lab 09: QGIS and Python'
+author: | 
+  | Simon Brewer
+  | Geography Department
+  | University of Utah
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    fig_caption: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(png)
+library(grid)
+```
+
+## Objectives
+
+The objectives for this lab are to introduce you to working with QGIS through the Python API (PyQGIS). There are two main things we'll look at:
+
+ 1. Working with layers
+ 2. Geoprocessing
+
+The examples given here are modified from Anita Graser's [blog][agID]
+ 
+## Setup
+
+### Data
+
+We'll use some map layers that we used in a previous lab (02). I've added these to a new zip file (*lab09.zip*). Make a new folder for today's lab (`lab09`), copy the zip file to it and extract it.
+
+### QGIS
+
+Start QGIS and open a new project. Don't add any layers to this (we'll use Python for this and most of the subsequent steps).
+
+### Python
+
+QGIS comes with a built-in Python interpreter, so there is no need to install Python separately. If you would prefer to use a different version of Python (e.g. if you have another one installed with a particular setup), you can switch by going to Options > System > Current Environment Variables, and looking for two environmental variables (`PYTHONHOME` and `PYTHONPATH`). These need to be redefined to the location of the Python executable that you would like to use. For this lab however, we will just use the built-in version. 
+
+### Accessing the Python console
+
+You can access a Python console from within QGIS's main interface by going to Plugins > Python Console. This will open a new window (usually in the lower righthand side of the QGIS interface):
+
+![QGIS Python console](./images/console1.png)
+
+This window is split into two parts. You can enter Python commands in the lower panel (by the `>>>` prompt), and any results will be shown in the top panel. Try entering: 
+
+```
+print(Hello, World!)
+```
+
+And return to see this exciting message printed:
+
+![QGIS Python console](./images/console2.png)
+
+You can also open a script to store and run your commands. Click on the icon above the Python console that looks like a notepad and pen to open the editor. It's also possible to open scripts in an external editor. 
+
+### Setting directory path
+
+As we will be loading a lot of different layers, we'll start by setting a general path to the data (`lab09/lab09_data`). You will need to adjust this to your own computer/folder tree. We'll also import the `os` module that has a series of functions that help with file manipulation in Python. 
+
+```
+import os
+data_path = '/Users/u0784726/Dropbox/Data/devtools/geog5670/Lab09/lab09_data/'
+```
+
+## Working with layers
+
+We'll start by looking at ways to include different layers through Python. These largely fall into two categories: i) tools that use the interface API (`iface`), and ii) tools that use the project instance (`QgsProject`). Note that these are not exclusive, but you may find it easier to stick with one or the other. If you are creating your own tools, then the interface API might be more useful. 
+
+### Vector data
+
+#### Adding vector layer with QGIS Interface API
+
+We'll start by adding a vector layer from a Shapefile using QGIS interface API and the `addVectorLayer` method. This uses the following basic expression to specify the path to the file, the name of the layer to create and the library that is used to load the data. Most vector layers (including shapefiles) can be loaded using the `ogr` library. 
+
+```
+layer = iface.addVectorLayer(path:string,layer_name:string,library:string)
+```
+
+Start by loading the `places.shp` layer. The first line here concatenates the path to the files we created earlier and the name of the shapefile we want to load. The second then adds it to QGIS. You should see the points appear in the map window. 
+
+```
+places_file = os.path.join(data_path, 'shapefiles', 'places.shp')
+layer = iface.addVectorLayer(places_file, 'places', 'ogr')
+```
+
+Note that if you repeat this, it will add a second layer to the map window. YOu can remove any existing layers by right-clicking and selecting 'Remove layer' (and we'll look at how to remove them through Python later. You can also add layers from a GeoPackage, by appending the `layername`:
+
+```
+roads_file = os.path.join(data_path, 'training_data.gpkg|layername=roads')
+layer = iface.addVectorLayer(roads_file, 'roads', 'ogr')
+```
+
+Once loaded, you can adjust the symbology or map window. To reset the extents to the `places` layer, we first extract the `mapCanvas`, and get the bounding box of `places` with `extent()`
+
+```
+canvas = iface.mapCanvas()
+extent = places.extent()
+canvas.setExtent(extent)
+```
+
+While this changes the map window, it doesn't re-render the layers. If you want to update this, run `triggerRepaint`:
+
+```
+places.triggerRepaint()
+```
+
+You can also change symbols size, color or shape:
+```
+places.renderer().symbol().setSize(6)
+places.triggerRepaint()
+
+places.renderer().symbol().setColor(QColor("blue"))
+places.triggerRepaint()
+
+places.renderer().symbol().symbolLayer(0).setShape(QgsSimpleMarkerSymbolLayerBase.Star)
+places.triggerRepaint()
+```
+
+While these changes should appear in the map window, the legend in the layer manager will not have updated. You can force this with:
+
+```
+iface.layerTreeView().refreshLayerSymbology(places.id())
+```
+
+#### Adding vector layer with `Project` instance
+
+The Python-QGIS interface includes an object that represents the current QGIS project (`QgsProject`). This has a number of useful attributes and is a useful format for subsequent data processing. To load data, we need to first create a `QgsVectorLayer` that links to the data, and then use either `addMapLayer` or `addMapLayers` to load the data. Here, we create three layers, and then load them:
+
+```
+places_layer = QgsVectorLayer(places_file, 'places', 'ogr')
+
+rivers_file = os.path.join(data_path, 'shapefiles', 'rivers.shp')
+rivers_layer = QgsVectorLayer(rivers_file, 'rivers', 'ogr')
+
+water_file = os.path.join(data_path, 'shapefiles', 'water.shp')
+water_layer = QgsVectorLayer(water_file, 'water', 'ogr')
+```
+
+Add a list of layers
+```
+QgsProject.instance().addMapLayers([places_layer,rivers_layer])
+```
+
+Add a single layer
+```
+QgsProject.instance().addMapLayer(water_layer)
+```
+
+### Raster data
+
+#### Adding raster layer with QGIS interface API
+
+As with vector layers, we can load raster data through `iface` and `addRasterLayer`. In this example, we also add an `if` statement to check if the layer loaded correctly. If you are running scripts to load data, this is a very useful diagnostics that will tell you if there are any issues. Here's we'll load an RGB image from the northern part of our region:
+
+```
+rlayer = os.path.join(data_path, 'raster', '3320C_2010_314_RGB_LATLNG.tif')
+rast1 = iface.addRasterLayer(rlayer,"rast1","gdal")
+if rast1.isValid():
+    print("This is a valid raster layer!")
+else:
+    print("This raster layer is invalid!")
+```
+
+Let's now reset the window extent to our new raster layer:
+
+```
+canvas = iface.mapCanvas()
+extent = rast1.extent()
+canvas.setExtent(extent)
+```
+
+In the next section, we'll look at how to load multiple raster layers. Before getting there, we'll remove the one we just loaded. This needs to be done from the QGIS project instance using `removeMapLayer`, and then we re-render the scene:
+
+```
+QgsProject.instance().removeMapLayer(rast1)
+places.triggerRepaint()
+```
+
+#### Using Project API
+
+Next, we'll load layers using the project instance API. We have a total of 4 images in the `raster` folder, and so we can automatae loading these, rather than doing this one at a time. We'll start by getting the list of files using Python's handy `glob` module. This can produce a list of files using wildcards, and is a simple way (in this case) to find all the GeoTiff files:
+
+```
+import glob
+rast_path = os.path.join(data_path, 'raster', '*.tif')
+rast_files = glob.glob(rast_path)
+rast_files
+```
+
+Now we have the list of files, we can load them. Here, we'll iterate across this list and load each layer with a dynamically generated layer names (`rast` + an integer):
+
+```
+i = 0
+for rast in rast_files:
+    rname = "rast" + str(i)
+    QgsProject.instance().addMapLayer(QgsRasterLayer(rast, rname, 'gdal'))
+    i = i + 1
+```
+
+#### Adding OSM tiles
+
+You can also add layers from cloud services. Here is a simple example to load OpenStreetMap tiles for our region. We start by creating a universal resource indicator, that contains the URL, together with any parameters needed for the download (here the minimum (`zmin`) and maximum (`zmax`) zoom. Note that we use a different library to get the data (`wms`):
+```
+uri = "url=http://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png&zmax=19&zmin=0&type=xyz"
+tms_layer = QgsRasterLayer(uri,'OSM','wms')
+if not tms_layer.isValid():
+    print ("Layer failed to load!")
+QgsProject.instance().addMapLayer(tms_layer)
+```
+
+## Working with layers
+
+We can now start to access various attributes of the layers. We'll work here with the `roads` layer. In order to do this, we need to make sure there is a Python object associated to the layer. In the code below this is the output object `roads_layer` created from `QgsVectorLayer`
+
+```
+roads_layer = QgsVectorLayer(roads_file, 'roads', 'ogr')
+QgsProject.instance().addMapLayer(roads_layer)
+```
+
+Note you can also get a list of currently available layers in the project:
+ 
+```
+names = [layer.name() for layer in QgsProject.instance().mapLayers().values()]
+print(names)
+```
+
+We can now check 
+
+- The layer's coordinate system:
+
+```
+crs = roads_layer.crs()
+print(crs.description())
+```
+
+- The layer's extent / bounding box
+
+```
+extent = roads_layer()
+min_x = extent.xMinimum()
+max_x = extent.xMaximum()
+min_y = extent.yMinimum()
+max_y = extent.yMaximum()
+print(min_x,min_y,max_x,max_y)
+```
+
+- The layer's metadata
+
+```
+metadata = roads_layer.htmlMetadata()
+print(metadata)
+```
+
+- The list of attributes in the layer
+
+```
+print (roads_layer.fields().names())
+```
+
+- The list of attributes (and their data types) in the layer
+
+```
+for field in roads_layer.fields():
+    print(field.name(),field.typeName())
+```
+
+- The number of features in the layer
+
+```
+n_feature = roads_layer.featureCount()
+print("number feature: ", n_feature)
+```
+
+Raster You can get similar information from raster layers. For example, to see the size and extent of `rast`:
+
+```
+rast1.htmlMetadata()
+```
+
+```
+print("Width: {}px".format(rast1.width()))
+print("Height: {}px".format(rast1.height()))
+print("Extent: {}".format(rast1.extent().toString()))
+```
+
+The function `bandStatistics()` will calculate various stats on a raster layer. To get the min and max values from the first band (red):
+
+```
+stats = rast1.dataProvider().bandStatistics(1)
+print("Min value: {}".format(stats.minimumValue))
+print("Max value: {}".format(stats.maximumValue))
+```
+
+### Iterate over features
+
+You can get the list of features from any vector layer with `getFeatures()`:
+
+```
+roads_layer.getFeatures()
+```
+
+As this just returns a list, we can iterate over these and print. This prints the highway type (try replacing `highway` with another attribute name):
+
+```
+for feature in roads_layer.getFeatures():
+    print(feature['highway'])
+```
+
+You can add a filter to subset the list with `setSubsetString`. The following code filters for the primary roads. Note that the format for selection is the same as you would use through the interface. We then iterate and print the maximum speed for those features. 
+
+```
+roads_layer.setSubsetString("highway LIKE 'prim%'")
+for feature in roads_layer.getFeatures():
+    print(feature['maxspeed'])
+```
+
+The filter can be removed by setting it to a blank string:
+
+```
+roads_layer.setSubsetString("")
+for feature in roads_layer.getFeatures():
+    print(feature['maxspeed'])
+```
+
+Note that you can also use Python conditions to filter while iterating across the features. Here, we print the speed limit and name of road, but only where those fields have values. This method will be less efficient than adding a filter if the number of features is large
+
+```
+for feature in roads_layer.getFeatures():
+    if (len(feature['maxspeed']) > 0 and len(feature['name']) > 0):
+        print("Speed limit of {maxspeed} {name} ".format(maxspeed=feature['maxspeed'], name=feature['name']))
+```
+
+As another example, we find the number of segments with speed limit of 60 mph:
+
+```
+n_total = 0
+n_60 = 0
+for feature in roads_layer.getFeatures():
+    n_total += 1
+    maxspeed = feature['maxspeed']
+    print(maxspeed)
+    if maxspeed == '60':
+        n_60 += 1
+print(f"Number of segments with max speed == 60: {n_60} of {n_total}")
+```
+
+#### Adding a new attribute
+
+Adding a new attribute through Python requires a number of steps. This is a strictly controlled process, where the values are only written to the layer if everything works. In the following code, we'll add an attribute containing the segment length of each feature in `roads_layer`
+
+- The `roads_layer` is put into editing mode
+- A new attribute is added called `seg_length` using `QgsField`. Note that you need to set the data type (from `String`, `Integer` or `Double`)
+- Update the fields
+- Iterate over the features
+    - For each feature, extract the length (from `geometry().length()`) and add it to the new field
+    - Update the feature with the new information
+
+```
+with edit(roads_layer):
+    roads_layer.addAttribute(QgsField('seg_length', QVariant.Double))
+    roads_layer.updateFields()
+    for feature in roads_layer.getFeatures():
+        feature['seg_length'] = feature.geometry().length()
+        roads_layer.updateFeature(feature)
+```
+
+If everything ran correctly, you should be able to print out the length values:
+
+```
+for feature in roads_layer.getFeatures():
+    print(feature['seg_length'])
+```
+
+Note that as the CRS for the layer is WGS84, these values are length in degrees. In the next secion, we'll look at projecting the layer to estimate these lengths in meters. 
+
+Removing an attribute is not easy. First, you need to find the column number holding that attribute, then use a combination of `dataProvider()` and `deleteAttributes()` to remove it:
+
+```
+att_id = roads_layer.dataProvider().fieldNameIndex('seg_length')
+att_id
+roads_layer.dataProvider().deleteAttributes([att_id])
+```
+
+## GeoProcessing with the `processing` toolbox
+
+The previous section dealt with loading and manipulating layers. The real power of PyQGIS comes through being able to access QGIS's geoprocessing tools to run analyses on these layers. We'll look here at a couple of simple examples. You can use any of the tools that are available through the interface, including tools that are available through plug-ins. Tools are specified with `source:tool` tuple, where the source can include 
+
+- `native` (standard QGIS tools)
+- `gdal` (GDAL operators)
+- `saga` (SAGA functions)
+- `grass` (GRASS modules)
+
+To start, you'll need to import the `processing` module:
+
+```
+import processing
+```
+
+### Reprojecting layers
+
+For our first example, we'll reproject the roads layer to a UTM projection, and then recalculate the segment lengths. There's a couple of steps here. First, we set up a Python dictionary containing various arguments for the function. Python dictionaries hold `key:value` tuples, which here correspond to `argument:value`. We need three arguments for reprojection:
+
+- `INPUT`: the layer to reproject
+- `TARGET_CRS`: the CRS to project to (we'll use the EPSG code, but you can also use proj strings or WKT)
+- `OUTPUT`: where to store the output layer. Here, we'll store in memory, with the name `roads_34s`
+
+```
+parameters = {'INPUT': roads_layer, 'TARGET_CRS': 'EPSG:32734', 'OUTPUT': 'memory:roads_34s'}
+```
+
+Next, we'll run the tool. Here we specify a) the tuple with the source and name; b) the dictionary of parameters
+
+```
+result = processing.run('native:reprojectlayer', parameters)
+```
+
+Once run, we can add the resulting layer to the QGIS's layer tree. Note that as QGIS reprojects layers for visualization, all you will see is a new set of lines
+
+```
+QgsProject.instance().addMapLayer(result['OUTPUT'])
+```
+
+Note that you can also save the new layer to file by altering the last argument:
+
+```
+reproj_file = os.path.join(data_path, 'shapefiles', 'roads_34S.shp')
+parameters = {'INPUT': roads_layer, 'TARGET_CRS': 'EPSG:32734', 'OUTPUT': reproj_file}
+result = processing.run('native:reprojectlayer', parameters)
+```
+
+So how do you know what these arguments are? The easiest way to get a list is to using `algorithmHelp` in the console, which will print a help page:
+
+```
+processing.algorithmHelp("native:reprojectlayer")
+```
+
+If you've previously run a tool from the QGIS interface, you can look under Processing > History to see the arguments that were used. 
+
+And if all else fails, it's worth googling the tool to see what the internet suggests. 
+
+Having run this, we'll now create a Python object containing the output layer, then re-use the code from above to iterate over the features and add the lengths:
+
+```
+roads_34s = result['OUTPUT']
+
+with edit(roads_34s):
+    roads_34s.addAttribute(QgsField('seg_length', QVariant.Double))
+    roads_34s.updateFields()
+    for feature in roads_34s.getFeatures():
+        feature[my_field_name] = feature.geometry().length()
+        roads_34s.updateFeature(feature)
+```
+
+And if we now print the results, you should see that these are in meters:
+
+```
+for feature in roads_34s.getFeatures():
+    print(feature['seg_length'])
+```
+
+### Chaining processing steps
+
+For the next example, we'll look at how to chain processing steps. Here's we'll make use of creating temporary layers in memory to chain results bewteen two tools. Our goal will be to find features from the `places` layer that are close to rivers. We'll use the original layers rather than goign through the steps of reprojecting them, but in practice you would need to do that first. 
+
+Step 1: Make a buffer around the rivers layer using `buffer`. I'd encourage you to use the `algorithmHelp` fucntion to find out what these arguments do (and try changing them!). When the tool is run, the output is saved to an object called `buffered_rivers` in memory, and we add this to the map layers. 
+
+```
+buffer_pars = {'INPUT': rivers_layer, 'DISTANCE': 0.005, 'SEGMENTS':5, 'END_CAP_STYLE':0, 'JOIN_STYLE':0, 'MITER_LIMIT':2, 'DISSOLVE':False,'OUTPUT':'memory:'}
+
+buffered_rivers = processing.run("native:buffer", buffer_pars)
+
+QgsProject.instance().addMapLayer(buffered_rivers['OUTPUT'])
+```
+
+Step 2. Intersect with `places` layer. We'll now use `extractbylocation` to find the `places` that fall within the buffers we just created. Most of the arguments should be straightforward here, but the `PREDICATE` is important, as this specifies the type of condition for selection:
+
+- 0 — intersect
+- 1 — contain
+- 2 — disjoint
+- 3 — equal
+- 4 — touch
+- 5 — overlap
+- 6 — are within
+- 7 — cross
+
+```
+extract_pars = {'INPUT': places_layer, 'PREDICATE':[0], 'INTERSECT':buffered_rivers['OUTPUT'], 'OUTPUT':'memory:'}
+
+extracted_places = processing.run("native:extractbylocation", extract_pars)
+
+QgsProject.instance().addMapLayer(extracted_places['OUTPUT'])
+```
+
+Finally, we can print the list of selected places.
+```
+for feature in extracted_places['OUTPUT'].getFeatures():
+    print(feature["name"])
+```
+
+### DEM processing example
+
+As a last example, we'll demonstrate making a hillshade layer from a DEM. We'll also use this to demonstrate using processing tools provided by other plug-ins. The file is a 30m SRTM DEM for part of the study region. Read it in and add it to the set of layers. 
+
+```
+dem_file = os.path.join(data_path, 'SRTM', 'srtm_41_19_4326.tif')
+QgsProject.instance().addMapLayer(QgsRasterLayer(dem_file, 'dem', 'gdal'))
+```
+
+We'll first use the **gdal** tool: `hillshade`, which takes a broad set of arguments. Here, we set the vertical exaggeration (`Z_FACTOR`) and the sun's azimuth and elevation. The output is defined as `TEMPORARY`, which will write to memory. You can get further details on these arguments using `processing.algorithmHelp()` or by going to the **gdal** documentation [here][gdal1ID]. We'll also use a different function (`processing.runAndLoadResults`) that combines the two steps (run and loading) that we previously used. 
+
+```
+hillshade_pars = {'INPUT':dem_file,'BAND':1,'Z_FACTOR':9,'SCALE':1,'AZIMUTH':315,'ALTITUDE':45,'COMPUTE_EDGES':False,'OUTPUT':'TEMPORARY_OUTPUT'}
+
+hillshade_gdal = processing.runAndLoadResults("gdal:hillshade", hillshade_pars)
+```
+
+Next we'll do the same using **saga**'s tool (`analyticalhillshading`). We'll use the same values for parameters, but note that the argument names are different to keep consistent with the **saga** function (further details can be found [here][saga1ID]).
+
+```
+hillshade_pars = {'ELEVATION':dem_file,'METHOD':0,'AZIMUTH':315,'DECLINATION':45,'EXAGGERATION':9,'SHADE':'TEMPORARY_OUTPUT'}
+
+hillshade_saga = processing.runAndLoadResults("saga:analyticalhillshading", hillshade_pars)
+```
+
+Just for completeness, here's the same thing calculated through the native QGIS hillshade routine:
+
+```
+hillshade_pars = {'INPUT':dem_file,'AZIMUTH':315,'V_ANGLE':45,'Z_FACTOR':9,'OUTPUT':'TEMPORARY_OUTPUT'}
+
+hillshade_native = processing.runAndLoadResults("native:hillshade", hillshade_pars)
+```
+
+This is a fairly extreme example, where the same processing tool is available in multiple plug-ins (we haven't even looked at the GRASS module!), but hopefully it illustrates the flexibility in these processing tools, by giving you a single interface to multiple OS geospatial software packages. 
+
+[agID]: https://anitagraser.com/pyqgis-101-introduction-to-qgis-python-programming-for-non-programmers/
+[gdal1ID]: https://gdal.org/programs/gdaldem.html
+[saga1ID]: https://saga-gis.sourceforge.io/saga_tool_doc/2.2.4/ta_lighting_0.html
