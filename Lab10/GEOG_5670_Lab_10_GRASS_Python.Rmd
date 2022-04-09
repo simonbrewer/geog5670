@@ -1,0 +1,654 @@
+---
+title: 'GEOG 5670/6670 Lab 10: GRASS GIS and Python'
+author: | 
+  | Simon Brewer
+  | Geography Department
+  | University of Utah
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    fig_caption: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(png)
+library(grid)
+```
+
+## Objectives
+
+The objectives for this lab are to introduce:
+
+ 1. Python as a scripting language in Linux
+ 2. The GRASS libraries in Python
+ 3. Some examples of scripting GIS analysis with Python and GRASS
+  
+## Python
+
+Python is a widely used and widely distributed scripting language, and comes as standard on virtually all GNU/Linux installations. It is fully object-orientated and provides a much broader range of functions than Bash, including numerical and scientific libraries. It has also been adopted by the GIS community as the de-facto language for scripting GIS analysis and is well-integrated with ArcGIS. 
+
+Starting with version 6, GRASS has come with standard libraries that can be used from Python scripts, and several of the standard GRASS functions are, in fact, Python scripts. For example, most of the vector database commands (e.g. `v.db.addtable`) are written in Python. For much of this development, GRASS used Python 2.7, but the most recent versions (starting with ver 7.7) have switched to Python 3. 
+
+We will briefly introduce Python in the Linux environment, then look at some examples of scripting using the GRASS libraries. These examples are modified from the IRSAE GRASS workshop (Summer 2018).
+
+## A (very) brief introduction to Python
+
+Login to the CHPC server, but do not start GRASS yet.
+
+### The command line
+Python can be run from the shell command line. Type:
+	
+```
+python3
+```
+
+To start the Python 3 interpreter, and you will see the standard prompt appear (`>>>`). You can use this as a calculator, with the usual operators:
+
+```
+2+2
+100*2
+7.0/3.0
+```
+
+### Variables
+Variables can be used to store the results of these (and any) operations:
+
+```
+x = 2+2
+y = 7.0/3.0
+```
+	
+And these variables, once created, can be used in operations and functions:
+
+```
+x * y
+```
+
+The content of a variable can be seen by using `print`:
+
+```
+print x
+```
+
+Python can deal with strings, using single or double quotes:
+
+```
+"hello"
+'goodbye'
+	
+str1 = "hello"
+print str1
+```
+
+You can access various parts of the string using indexing - one or more numbers between brackets ([,]) that refer to the part of the string you are interested in. Note that this uses C-style indexing, i.e. the first value is index 0.
+
+```
+str1[0]
+str1[4]
+str1[3:]
+str1[1:3]
+```
+
+### Compound data types:
+
+Python has a set of standard compound data types:
+
+#### Lists
+Lists are widely used to store a series of values under a single variable name. Lists are highly flexible, and can contain a mixture of data types. Values are enclosed by brackets and seperated by commas:
+
+```
+list = [ 'abcd', 786 , 2.23, 'john', 70.2 ]
+print list
+```
+
+Accessing individual elements of the list uses the same syntax as for the strings:
+
+```
+print list[0]
+print list[1:3]
+print list[2:]
+print list[:3]
+```
+
+These indices can be used to update or modify the list:
+
+```
+print list
+list[2] = 999.999
+print list
+```
+
+Lists can be easily concatenated using '+' or repeated using '*':
+
+```
+tinylist = [123, 'john']
+print tinylist * 2
+print list + tinylist
+```
+
+#### Tuples
+Tuples are similar to lists, in that they contain a series of values store under a variable name. Unlike lists, these cannot be modified once created, so serve as *look-up* tables in Python. The other difference is that parantheses, not brackets, are used to define these:
+
+```
+tuple = ( 'abcd', 786 , 2.23, 'john', 70.2  )
+print tuple
+```
+
+We can use indexing as before:
+
+```
+print tuple[2]
+```
+
+But cannot change values:
+
+```
+tuple[2] = 999.999
+```	
+
+#### Dictionaries
+Dictionaries are used to store key:value pairs in a compound variable. What this means is that a value is stored with a name (key), rather than an index in an array. To access the value, the key is then used in place of a standard index. Dictionaries are built using curly brackets, and pairs of values given as *key:pair*, seperated by commas:
+
+```
+tinydict = {'name': 'john','code':6734, 'dept': 'sales'}
+print tinydict['name']       
+print tinydict['code']           
+print tinydict          
+print tinydict.keys()   
+print tinydict.values() 
+```	
+These last two lines show the object-orientated nature of Python. When the dictionary object was made, two structures were created: keys and values, which contain the appropriate part of the pair. These structures can be accessed using the name of the object, followed by '.' and the name of the structure.
+
+### Operators
+
+Python supports the usual data operators: arithmetic, logical, conditional/comparison; and control flow statements: `if`, `while` and `for`.  Full descriptions of these can be found on the [Python website][pyweb1] (and in many other parts of the internet)
+
+Now quit from the Python command line by typing: `exit()` or `quit()`.
+
+### Python scripting
+
+As with Bash, Python scripts can be written with any text editor, then run from the command line. By convention, these have the extension '.py'. Create a text file with notepad, vim or any other editor called 'pythonEx1.py', and transfer this to the server. Add the following code:
+
+```
+#!/usr/bin/python
+	
+x = 5
+print x
+```
+
+Quit and save the file. Then make it executable:
+
+```
+chmod +x pythonEx1.py
+./pythonEx1.py
+```
+
+### While loops	
+Now we'll add a control loop using `while`. Reopen the file, delete everything apart from the header, and add the following
+
+```
+a, b = 0, 1
+while b < 100:
+	print b
+	a, b = b, a+b
+```
+
+Some things to note:
+
+- We can initialize more than one variable on the same line. This sets a = 0 and b = 1
+- The condition in the `while` loop (continue while b < 100) is followed by a colon
+- The indentations in the loop. Python uses white space and indentations to identify loops (and when loops end). Be careful when entering code to match the indents given here. 
+
+Save, quit and run the script to see the start of the Fibonacci series. Note that if you go back and change `print b` to `print b,` (i.e. with a comma) the output will be on a single line. 
+
+### If statements
+For an example using an 'if' statement, make a new script file ('pythonEx2.py'). Add the following code to this (don't forget the header) to create your own A.I. machine that will stun you by by working out which of two numbers is bigger:
+
+x = int(raw_input("Please enter integer 1: "))
+y = int(raw_input("Please enter integer 2: "))	
+if (x == y):
+  print "Equal"
+elif (x > y):
+	diff = x - y
+  print "x bigger by ", diff
+else:
+  diff = y - x
+  print "y bigger by ", diff
+
+The first two lines take input from the command line and convert to integers. The next line is a standard `if` statement, followed by a condition (is `x` equal to `y`). If so, print a statment. 
+
+The next line starts with `elif`, short for *else if*, giving the next condition to be tested if the first was not true. If this is true, calculate the difference and print this - note that we can print a combination of strings and variables, seperated by commas. You can have any number of `elif` statements.
+
+The final condition is a simple `else` and is run if none of the other conditions were evaluated and found to be true. 
+
+Save and quit. Then make the file executable and run. Enter two integers when prompted.
+
+### For statements
+
+For our final example, we will look at `for` loops. Make a new script and copy the following code, which includes three different methods for creating for loops:
+
+```
+words = ['cat', 'window', 'defenestrate']
+print 'Loop 1'
+for w in words:
+	print w, len(w)
+	
+print 'Loop 2'
+for i in range(10):
+	print i
+		
+print 'Loop 3'
+for i in range(len(words)):
+	print i, words[i], len(words[i])
+```
+
+1. The first loop iterates over the list `words`, and prints each value in the list, together with its length
+2. The second loop is closer to traditional looping, where the loop is repeated for a number of steps, here defined by a range of 10 values (0 .. 9)
+3. The third loop combines these, with a loop that repeats the same number of times as there are values in the list. While this looks the same as the first, we also have the iterator 'i', which can be used to index values in the list (and in other lists)
+
+Quit, save and run. Be amazed at the output. 
+	
+## Python and GRASS GIS
+
+GRASS offers a couple of ways of interacting with Python. We'll focus on two:
+
+- [GRASS Scripting Library][gsID] as a simple interface to Python scripting capabilities 
+- Object-oriented [pyGRASS][pgID]
+
+The difference between these is as follows:
+
+> PyGRASS has been originally design as an object-oriented Python API for GRASS GIS. This is a major difference to GRASS Scripting Library which consists of procedures - Python functions. It is important to mention that PyGRASS has not been designed as replacement of GRASS Scripting Library, the both libraries are living next to each other. It is up to the user (you) which library use in his/her scripts. It’s also possible to compine the both libraries in one script.
+
+
+As ever, we'll use the North Carolina dataset for our examples. Start GRASS, choose the `nc_spm_08_grass7` LOCATION, and either the 'user1' or your own MAPSET.
+
+Before we start, we're going to use a MASK in these examples to confine them to a single zip code in Wake county. The first thing we need to do is to create a new vector layer with the zip code of interest, which we can do as follows:
+
+```
+v.extract input=zipcodes_wake where=ZIPNUM="27606" output=zc27606
+```
+
+## GRASS scripting library
+
+We'll start by using the Layer Manager’s Python tab, rather than the terminal. When GRASS started, you should see two windows, the Layer Manager:
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/LayerManager.png")
+grid.raster(img)
+```
+
+And the Map Display window:
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/MapDisplay.png")
+grid.raster(img)
+```
+
+On the bottom of the Layer Manager are five tabs. The one labelled `Python` will give you access to the same type of interactive shell that we saw above. We are going to do the following operations
+
+- Set the computational region to the Landsat images (`'lsat7_2002*`)
+- Set the mask using `r.mask` and the zip code vector we just made
+- Calculate NDVI
+- Compute NDVI statistics, print min, max and mean NDVI values
+
+The GRASS commands to do this are:
+
+```
+# 1.
+g.region rast=lsat7_2002_40
+# 2.
+r.mask --overwrite vector=zc27606
+# 3.
+i.vi --overwrite output=ndvi viname=ndvi red=lsat7_2002_30 nir=lsat7_2002_40
+# 4.
+r.univar map=ndvi
+```
+
+We can now turn these commands into Python syntax using the GRASS Scripting Library, as this is already included in the Layer Manager Python tab. GRASS commands can be run by `core.run_command` function, then specifying the various arguments and flags. The rest of the code in this section should be entered in the Python interactive console (you don't need to enter the numbers `# 1` - these are just there for reference).
+
+```
+# 1.
+grass.run_command('g.region', raster='lsat7_2002_40')
+# 2.
+grass.run_command('r.mask', vector='zc27606', overwrite=True)
+# 3.
+grass.run_command('i.vi', output='ndvi', viname='ndvi', red='lsat7_2002_30', nir='lsat7_2002_40', overwrite=True)
+# 4.
+grass.run_command('r.univar', map='ndvi')
+```
+
+If the `core.run_command` functions have run successfully, they will return a code of 0. Other codes will indicate errors. 
+Python shell has its history, you can browse previous commands by Alt+P, next commands by Alt+N.
+
+There is a small problem with our first script: the output of the final command was discarded and not shown in the console. A solution is to run `r.univar` with a different function (`grass.script.read_command`) that does not discard output. To run this, first import the `grass.script` libraries
+
+```
+import grass.script as gscript
+```
+
+```
+gscript.read_command('r.univar', map='ndvi')
+```
+
+However, this returns the output as standard output. If we want to do anything with the output, we can parse this as a Python object. To do this, we need to change two things:
+
+- Run `r.univar` with `-g` to enable shell script output
+- Use the `gscript.parse_command` function to parse and store output as a Python dictionary
+
+```
+stats = gscript.parse_command('r.univar', flags='g', map='ndvi')
+print ('NDVI min value: {0:.4f}'.format(float(stats['min'])))
+print ('NDVI max value: {0:.4f}'.format(float(stats['max'])))
+print ('NDVI mean value: {0:.4f}'.format(float(stats['mean'])))
+```
+
+The resulting NDVI map can be added to the Map Display by calling `AddLayer()` from the Python shell:
+
+```
+AddLayer('ndvi')
+```
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/ndvi1.png")
+grid.raster(img)
+```
+
+## PyGRASS
+
+We'll now re-do this example using the PyGRASS library. We'll create a full script this time, rather than entering the commands interactively. Open a new text file in your favorite editor. GRASS has a simple Python editor available through the Layer Manager. If you open this, it will open a template file set up for the GRASS scripting library. Delete all this except for the shebang (the `#!` line at the top). 
+
+Unlike the GRASS scripting library, which has a variety of different of different ways to call GRASS functions, PyGRASS has only one the `Module` command. Add the follwing code to your file to reproduce the first steps (region selection, masking and NDVI calculation:
+
+```
+from grass.pygrass.modules import Module
+
+Module('g.region', raster='lsat7_2002_40')
+
+Module('r.mask', vector='zc27606', overwrite=True)
+
+Module('i.vi', output='ndvi', viname='ndvi', red='lsat7_2002_30', nir='lsat7_2002_40', overwrite=True)
+```
+
+So far so good - all we have had to do is replace the GRASS scripting function with `Module`. Next, we'll add the estimation and printing of the NDVI statistics, but attempt to improve the display a little. To do this we need a couple of extra libraries, so add the following to the top f your script:
+
+```
+from subprocess import PIPE
+from grass.script import parse_key_val
+```
+
+Then add the following to the end of the script. Note that we use the `PIPE` function to capture the output of `r.univar`. Then `parse_key_val` to identify the different statistics (minimum, maximum, etc):
+
+```
+ret = Module('r.univar', flags='g', map='ndvi', stdout_=PIPE)
+stats = parse_key_val(ret.outputs.stdout)
+print ('-' * 80)
+print ('NDVI value statistics')
+print ('-' * 80)
+print ('NDVI min value: {0:.4f}'.format(float(stats['min'])))
+print ('NDVI max value: {0:.4f}'.format(float(stats['max'])))
+print ('NDVI mean value: {0:.4f}'.format(float(stats['mean'])))
+```
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/ndvi2.png")
+grid.raster(img)
+```
+
+We can also run some simple analyses on vector layers. Here, we'll calculate the area of the zip codes overlying the NDVI image. As we previous added a mask to use only a single zip code for the NDVI statistics, we'll first remove this, then use `v.report` to get area sizes. We again use `PIPE` to capture the output, and then parse it. As the output cannot be coerced to shell script, we need to build our own parser, which uses the `|` character to split the key-value pairs:
+
+
+```
+Module('r.mask', flags='r')
+
+print ('-' * 80)
+print ('Zip code areas')
+print ('-' * 80)
+ret = Module('v.report', map='zipcodes_wake', option='area', stdout_=PIPE)
+for line in ret.outputs.stdout.splitlines()[1:]: # skip first line (cat|label|area)
+    # parse line (eg. 1||2712850)
+    data = line.split('|')
+    cat = data[0]
+    area = float(data[-1])
+    zip = data[8]
+    print ('Zip code {0}: {1}: {2:.1f} ha'.format(cat, zip, area/1e4))
+```
+
+Now we can try to calulate elevation zonal statistics for each zip code. We first make a copy of the zip code layer with `v.rast.stats`, then use this to estimate the elevation range in eahc zip code and add this to the attribute table. Then we print the attributes using `v.db.select`:
+
+```
+# v.to.rast: use -c flag for updating statistics if exists
+Module('g.copy', vector=[ 'zipcodes_wake', 'zipcodes_copy' ], overwrite=True)
+Module('g.region', vector='zipcodes_copy')
+
+Module('v.rast.stats', flags='c', map='zipcodes_copy', raster='elev_state_500m',
+       column_prefix='elev', method=['minimum','maximum','average'])
+# v.db.select: don't print column names (-c)
+ret = Module('v.db.select', flags='c', map='zipcodes_copy', separator='comma', columns = [ 'ZIPNUM', 'elev_minimum', 'elev_maximum', 'elev_average' ], stdout_=PIPE)
+for line in ret.outputs.stdout.splitlines():
+    label,min,max,mean = line.split(',')
+    print ('Zip code {0}: {1} (min) {2} (max) {3} (mean)'.format(
+    label, min, max, mean))
+```
+
+## Script user interface
+
+The GRASS Python libraries also offer an easy way to generate user interfaces. This requires a little more work in setting up the script. The following example performs the difficult task of adding to raster layers together. Note that the first part of the script includes the key work `#%module`, telling GRASS that this is to be considered as a stand-alone GRASS module with an interface. By default, the interface will provide options for overwriting existing files and whether or not to run in a verbose mode. 
+
+Here, we want to allow the user to specify two raster layers (`A` and `B`) that will subsequently be added together. The header then adds an `#%option` for each of these as `G_OPT_R_INPUT`; a raster input (a similar option `G_OPT_V_INPUT` specifies vector input). These are given a key so that they can be referenced in the script, and a description that will appear on the interface. 
+
+In the script, we used `grass.script`'s parser to parse out the options, and then these can be referenced in the script using `options` and the key for that option. The other piece of code that may be somewhat new here is `gscript.mapcalc`. This evaluates a standard `r.mapcalc` expression within a Python script (here adding together the two rasters). 
+
+
+```
+#!/usr/bin/env python3
+
+#%module
+#% description: Adds the values of two rasters (A + B)
+#% keyword: raster
+#% keyword: algebra
+#% keyword: sum
+#%end
+#%option G_OPT_R_INPUT
+#% key: araster
+#% description: Name of input raster A in an expression A + B
+#%end
+#%option G_OPT_R_INPUT
+#% key: braster
+#% description: Name of input raster B in an expression A + B
+#%end
+#%option G_OPT_R_OUTPUT
+#%end
+
+
+import sys
+
+import grass.script as gscript
+
+
+def main():
+    options, flags = gscript.parser()
+    araster = options['araster']
+    braster = options['braster']
+    output = options['output']
+
+    gscript.mapcalc('{r} = {a} + {b}'.format(r=output, a=araster, b=braster))
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+```
+
+Copy this to a script and run it, and you should see your new interface:
+
+```{r fig.width=6.5, fig.height=4., echo=FALSE}
+img <- readPNG("images/ui.png")
+grid.raster(img)
+```
+
+## Direct access 
+
+PyGRASS also offers functions to directly access GRASS layers as Python objects. 
+
+### PyGRASS and raster data
+
+Raster map can be treated by `RasterRow` for reading raster data row by row. There is also `RasterSegment` which allows reading data by user-defined segments (tiles). For example, to read data from the ndvi layer we created (you can run this from the interactive Python session or from a script:
+
+```
+from grass.pygrass.raster import RasterRow
+ndvi = RasterRow('ndvi')
+```
+The raster map can then be opened with the `open()` method, and we can access basic information like number of columns and rows, min and max values, range etc.
+
+```
+ndvi.open()
+print (ndvi.info.cols, ndvi.info.rows)
+min, max = ndvi.info.range
+print (min, max)
+print (max - min)
+```
+
+When done, we can close the raster:
+
+```
+ndvi.close()
+```
+
+For a slightly longer example, we can use numpy functions to calculate some basic univariate statistics:
+
+```
+#!/usr/bin/env python
+
+import numpy as np
+from grass.pygrass.raster import RasterRow
+
+ndvi = RasterRow('ndvi')
+ndvi.open()
+
+min = max = None
+count = ncount = 0
+for row in ndvi:
+    for value in row:
+        if np.isnan(value):
+            ncount += 1
+        else:
+            if min is None:
+                min = max = value
+            else:
+                if min > value:
+                    min = value
+                elif max < value:
+                    max = value
+        count += 1
+
+ndvi.close()
+
+print ("min={0:.6f} max={1:.6f} count={2} (no-data: {3})".format(
+    min, max, count, ncount)
+)
+```
+
+#### Writing raster data
+
+It is also possible to write raster layers using PyGRASS. In this first example, we use existing layers to create a new one. By doing so, we don't need to worry about raster sizes or resolution as this will just match the the input layers. the usual landsat layers to create a , it is possible to start from existing maps or from scratch. In the next example we are going to create ndvi map from the existing Sentinel bands
+
+lsat7_2002_40 - lsat7_2002_30
+
+```
+import numpy
+
+nir = RasterRow('lsat7_2002_40')
+nir.open()
+red = RasterRow('lsat7_2002_30')
+red.open()
+
+ndvi = RasterRow('ndvi_pygrass')
+ndvi.open('w', mtype='FCELL', overwrite=True)
+
+for i in range(len(nir)):
+    row_red = red[i]
+    row_nir = nir[i]
+    rowred = row_red.astype(numpy.float32)
+    rownir = row_nir.astype(numpy.float32)
+    row_new = (rownir - rowred) / (rownir + rowred)
+    ndvi.put_row(row_new)
+
+ndvi.close()
+nir.close()
+red.close()
+```
+
+If you want to create a new raster layer from scratch, without using an existing layer as a template, you need to start by getting the regional information to get the right number of rows and columns. This is then used to create an empty row (`Buffer` object in PyGRASS). The following example creates a new layer and fills it with random numbers:
+
+```
+newscratch = RasterRow('newscratch')
+newscratch.open('w', overwrite=True)
+
+# get computational region info
+from grass.pygrass.gis.region import Region
+reg = Region()
+
+# import bufffer and create empty row
+from grass.pygrass.raster.buffer import Buffer
+newrow = Buffer((reg.cols,), mtype='CELL')
+
+# we create a raster to fill all the GRASS GIS region
+for r in range(reg.rows):
+    newrow[:] = np.random.random_integers(0, 1000, size=newrow.size)
+    newscratch.put_row(newrow)
+
+newscratch.close()
+```
+
+### PyGRASS and vector data
+
+Vector layers can be accessed using `Vector` when dealing with basic vector primitives (points, lines, boundaries, centroids) or by `VectorTopo` to access topological primitives like areas or isles. 
+
+The following example uses the `viter()` method for a vector object to iterate across all features. This simply prints zip code names and their area size in hectares.
+
+```
+from grass.pygrass.vector import VectorTopo
+zipcode = VectorTopo('zipcodes_wake')
+zipcode.open('r')
+
+for feat in zipcode.viter('areas'):
+    print (u'{0}: {1:.1f}ha'.format(feat.attrs['ZIPNAME'], feat.area() / 10e4))
+
+zipcode.close()
+```
+
+#### Writing vector data
+
+As with the raster layer example, it is also possible to create vector layers using PyGRASS. In the next example we will create a point vector layer with an attribute table. 
+
+```
+from grass.pygrass.vector.geometry import Point
+
+# create the columns definition
+cols = [(u'cat',   'INTEGER PRIMARY KEY'),
+        (u'name',  'VARCHAR')]
+# start new vector with columns definition
+new = VectorTopo('pois')
+new.open('w', tab_cols=cols, overwrite=True)
+# add points
+point0 = Point(633000, 225000)
+point1 = Point(640000, 216000)
+new.write(point0, ('PointA', ))
+new.write(point1, ('PointB', ))
+# commit attributes, otherwise they will be not saved
+new.table.conn.commit()
+# close the vector
+new.close()
+```
+
+
+[pyweb1]: https://www.python.org/doc/ 
+[spID]: http://docs.python.org/2/library/subprocess.html
+[npID]: http://docs.scipy.org/doc/numpy/reference/
+[scID]: http://www.scipy.org
+[gsID]: https://grass.osgeo.org/grass78/manuals/libpython/script_intro.html
+[pgID]: https://grass.osgeo.org/grass78/manuals/libpython/pygrass_index.html
