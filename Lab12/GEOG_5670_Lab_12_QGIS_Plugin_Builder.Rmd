@@ -1,0 +1,46 @@
+---
+title: 'GEOG 5670/6670 Lab 12: QGIS Plugin Builder'
+author: | 
+  | Simon Brewer
+  | Geography Department
+  | University of Utah
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    fig_caption: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(png)
+library(grid)
+```
+
+## Objectives
+
+Material in this lab has been modified from [PSU][psuID] and XXX
+
+## QGIS Plugin Builder
+
+The [plugin builder][pibID] for QGIS provides templates and various helper functions to create your own plugin. This allows you to create specific tools for your own projects, or for working in collaboration with others. The plugin builder is itself a plugin, and will need to be installed in your QGIS version. Go to [Plugins] > [Manage/Install Plugins…]. In the ‘All’ tab, type `plugin builder` in the search box, select the plugin and click ‘Install Plugin’. This should now appear in your [Plugins] menu. 
+
+## A random number generator
+
+We'll start by creating a simple plugin that will generate a random number, to illustrate the steps required. Start by opening the plugin builder, and you should see the following window appear. 
+
+
+
+To create a template for your plugin, you have to work through the dialog boxes of Plugin Builder and fill out the information there. Clicking the “Help” button will open a local .html page with detailed information on the purpose and meaning of the different fields. We fill out the first page as shown in the figure below. Here is a brief overview:
+
+Class name: this is the name of the main class for our plugin. It needs to be a valid Python class name.
+Plugin name: this is the name of the plugin in readable form. In contrast to the class name, it can contain spaces and other special characters.
+Description: a short description of what the plugin is for.
+Module name: the name of the .py file that will contain the main class for your plugin. Typically, the class name written with underscores rather than in CamelCase is used here.
+Version number & Minimum QGIS version: these are used to specify a version number for your plugin and the minimum QGIS version required to run it.
+Author/Company & Email address: here you provide information about the author of the plugin that will be used to create the copyright information at the beginning of the different files. We have no intentation of publishing this plugin, so we just use “489” here.
+
+
+[pibID]: https://g-sherman.github.io/Qgis-Plugin-Builder/
+[psuID]: https://www.e-education.psu.edu/geog489
