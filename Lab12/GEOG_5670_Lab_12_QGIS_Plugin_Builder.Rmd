@@ -207,6 +207,8 @@ As before, we'll start by creating a template through the plugin builder tool. O
 - Minimum QGIS version: `3.0`
 - Author/Company & Email address: You can add anything here, even your real name
 
+![Processing plugin](./images/sa_plugin1.png)
+
 On the next page, add a brief description, and continue. On the following page, choose `Processing Provider` from the Template drop-down menu. By creating a provider, rather than a simple plugin, it's possible to add mutliple tools to the same provider, and to access these through the PyQGIS API. This will give you a new set of options to fill out
 
 - Algorithm name: `Save Attributes as CSV`. This creates the specific algorithm with the processingprovider
@@ -214,25 +216,35 @@ On the next page, add a brief description, and continue. On the following page, 
 - Provider name: `Save Attributes`. This will be the high level provider name. Plugins for the same provider will be grouped togther. 
 - Provider description: `Writes the attribute table of a layer to a csv file`. 
 
+![Processing plugin](./images/sa_plugin2.png)
+
 Note that this distinguishes between the algorithm and the provider. Hierarchically, you can have multiple algorithms associated with a single provider.
 
-Click [Next] when you are done. Leave the boxes on the next page checked. Don't enter any details on the Publication page (unless you want to link to a Github repository). Do check the `Flag plugin as experimental`. You'll see this later on while installing, and it's a useful flag for plugins in development. Finally, select the output folder (use the same base folder as you used for the previous plugin).
+Click [Next] when you are done. Leave the boxes on the next page checked. Don't enter any details on the Publication page (unless you want to link to a Github repository). Do check the `Flag plugin as experimental`. You'll see this later on while installing, and it's a useful flag for plugins taht are in development. Finally, select the output folder (use the same base folder as you used for the previous plugin).
 
 ### Compiling and deploying
 
 Open a terminal and navigate to the new plugin folder. Check the list of files - this should include
 
-```
-save_attributes_processing.py
-save_attributes_processing_algorithm.py
-save_attributes_processing_provider.py
-```
+`save_attributes_processing.py`: this includes the general framework for a plugin
+`save_attributes_processing_algorithm.py`: this includes all code for the specific algorithm (writing to a csv file)
+`save_attributes_processing_provider.py`: this contains the code for the processing tool box (not the algorithms)
+
 
 If you have not installed `pb_tools`, then compile simply copy this folder to your QGIS plugins folder (see above). 
 
-If you are using `pbt_tools`, remember to edit the `plugin_path:` in the file *pb_tools.cfg*. Once you've done this, copy the files by running `pbt deploy`.
+If you are using `pbt_tools`, you'll now need to edit two sections of the *pb_tools.cfg* file:
 
+- `plugin_path:` set this to the QGIS plugin folder (see above)
+- `python_files:` here you'll need to add the additional `provider` and `algorithm` Python files.
 
+![pb_tools.cfg for processing](./images/sa_plugin3.png)
+
+Once you've made these changes, you can run `pbt deploy` to copy the files to the QGIS plugin directory.
+
+Once the files are copied, close and reopen QGIS. Now open the Plugin Manager, and you should see your new processing toolbox under the 'Installed' tab
+
+![Processing toolbox](./images/sa_plugin4.png)
 
 
 
