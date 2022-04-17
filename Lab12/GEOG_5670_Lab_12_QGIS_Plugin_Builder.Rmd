@@ -20,26 +20,220 @@ library(grid)
 
 ## Objectives
 
-Material in this lab has been modified from [PSU][psuID] and XXX
+Material in this lab has been modified from [PSU][psuID] and the [QGIS plugin builder site][pibID]
 
 ## QGIS Plugin Builder
 
-The [plugin builder][pibID] for QGIS provides templates and various helper functions to create your own plugin. This allows you to create specific tools for your own projects, or for working in collaboration with others. The plugin builder is itself a plugin, and will need to be installed in your QGIS version. Go to [Plugins] > [Manage/Install Plugins…]. In the ‘All’ tab, type `plugin builder` in the search box, select the plugin and click ‘Install Plugin’. This should now appear in your [Plugins] menu. 
+The [plugin builder][pibID] for QGIS provides templates and various helper functions to create your own plugin in Python. This allows you to create specific tools for your own projects, or for working in collaboration with others. The plugin builder is itself a plugin, and will need to be installed in your QGIS version. Go to [Plugins] > [Manage/Install Plugins…]. In the ‘All’ tab, type `plugin builder` in the search box, select the plugin and click ‘Install Plugin’. This should now appear in your [Plugins] menu. 
 
 ## A random number generator
 
 We'll start by creating a simple plugin that will generate a random number, to illustrate the steps required. Start by opening the plugin builder, and you should see the following window appear. 
 
+![Plugin Builder window](./images/plugin1.png)
+
+Let's start by filling out the various options:
+
+- Class name: this is the name of the main class for our plugin, and needs to be a valid Python class name (i.e. no special characters or spaces)
+- Plugin name: this is the name of the plugin in readable form
+- Description: a short description of what the plugin is for.
+- Module name: the name of the `.py` file that will contain the main class for your plugin.
+- Version number & Minimum QGIS version: these are used to specify a version number for your plugin and the minimum QGIS version required to run it.
+- Author/Company & Email address. This information will be used to create the copyright information at the beginning of the different files
+
+Add the following information for our random number generator
+
+- Class name: `RandomNumberGenerator`
+- Plugin name: `Random Number Generator`
+- Description: `Generates a random number between 0 and 100`
+- Module name: `random_number_generator`
+- Version number: `0.1`
+- Minimum QGIS version: `3.0`
+- Author/Company & Email address: You can add anything here, even your real name
+
+![Plugin Builder window](./images/plugin2.png)
+
+Click [Next] and you will get the option to provide a more detailed description of your plugin. Here, just add some text, and click [Next]. 
+
+The next window provides various options for the template to be used, for example creating a simple dialog box or a dock widget (a panel that can be docked to the QGIS interface). Select the first option `Tool button with dialog`. The "Menu" dropdown allows you to select which of QGIS's menus the plugin will appear in, and the "Text for the menu item" option is where you can enter the text that will appear in the menu entry for your plugin. Select the [Plugins] menu and just add `Random Number Generator` for the text. Click [Next].
+
+On the next page, you can select which files the builder will create, including files to test your plugin and to allow it be installed on computers using different languages. Unless you have reason to alter this, it's best to leave all options checked. Click [Next].
+
+The next page allows you to add links to Github repositories (or similar) if you would like to make your plugin publically available. You don't need to change anything here, unless you'd really like to make this available. Note that you will need to have an existing Github repository to publish to. Click [Next].
+
+The last page allows you to choose where the files will be stored on your computer. Enter here a folder that you can easily find (e.g. in your Documents or Desktop). 
+
+![Plugin Builder window](./images/plugin3.png)
+
+Click [Generate], and if everything works ok, you will see the following window appear:
+
+![Plugin Builder window](./images/plugin4.png)
+
+You may receive a warning message that Plugin Builder was not able to compile the resources.qrc file, which indicates that you are missing a tool (`pyrrc5`) that compiles your plugin into a suitable form for QGIS. The plugin has still been created, but you will need to compile manually. This forms part of a Python package called `PyQT5`. You can install this as follows:
+
+- Windows (OS4Geo???)
+- Mac OSX: you can install this with homebrew `brew install pyqt5`
+- Unix/Linux: `sudo apt-get install python3-pyqt5` (NOT TESTED)
+
+Once this is installed, open a terminal and navigate to the folder where your plugin was created. Then run the following command to compile:
+
+```
+pyrcc5 resources.qrc –o resources.py
+```
+
+You can now copy your plugin to the QGIS plugin folder. This is in your home directory under
+
+- Windows: `AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins`
+- Mac OS X: `Library/Application Support/QGIS/QGIS3/profiles/default/python/plugins`
+- Linux: `.local/share/QGIS/QGIS3/profiles/default/python/plugins`
+
+Once you have found this, simply copy the entire `random_number_generator` folder to your plugin folder. 
+
+### Installing your plugin in
+
+Now restart QGIS. As you still need to install the plugin, it won't appear anywhere in the interface yet. Go to the [Plugins] menu and [Manage and install plugins...]. Now scroll through the list of plugins or search for `random`, and you should see it appear:
+
+![Plugin Builder window](./images/plugin5.png) 
+Click to the left of the name in the list to install it (a check mark will appear). Now if you go to the [Plugins] menu, you should see an entry for your random number generator. Click this, and your plugin will appear:
+
+![Plugin Builder window](./images/plugin6.png)
+
+If you see this screen, congratulations! You have created and installed a plugin. It doesn't do anything, so let's fix that next. 
+
+To avoid having to copy and paste your files each time you change a plugin, you can install a python helper called `pb_tools`. It's probably a good idea to do this in a python virtual environment, so set one of these up (either using `virtualenv` or `conda create`). You can install these tools using `pip`:
+
+```
+pip install pb_tools
+```
+
+Now if you open a terminal and navigate to the folder created earlier, you can compile the plugin with 
+
+```
+pbt compile
+```
+
+And copy to your QGIS installation with
+
+```
+pbt deploy
+```
+
+Note for the `deploy` command to work correctly, you need to edit the file called *pb_tool.cfg*. In this file, you'll find a section:
+
+```
+# Full path to where you want your plugin directory copied. If empty,
+# the QGIS default path will be used. Don't include the plugin name in
+# the path.
+plugin_path:
+```
+
+Set this to the appropriate folder for your QGIS plugin folder (see above). For example, on my computer this is
+
+```
+plugin_path: /Users/u0784726/Library/Application\ Support/QGIS/QGIS3/profiles/default/python/plugins
+```
+
+Now the `deploy` command should work, and will allow to overwrite your existing plugin. 
+
+## Modifying the plugin
+
+### Changing the dialog box
+
+If you have installed PyQT5, then you will have also installed `qt designer`, a GUI for modifying QT windows. You can start this from the command line by running
+
+```
+Designer random_number_generator_dialog_base.ui
+```
+
+This will open a set of windows, including the existing dialog:
+
+![QT Designer](./images/qt_designer.png)
+Using this, make the following changes:
+
+- Delete the button box with the Ok and Cancel buttons (highlight these and press delete).
+- Change the layout to vertical (drag the 'Vertical Layout' icon in the left window (Widget Box) to the dialog box)
+- Add a push button and a label to the dialog box with vertical spacers in between
+- Set the button text to "Generate random number between 0 and 100". To do this, click the button, which will open it's properties in the Property Manager window on the right. Scroll down until you find `> text`, and change the text here
+- Set the label text to "The number is:" and change its horizontal alignment to centered (`AlignHCenter`).
+
+![QT Designer Dialog](./images/qt_designer2.png)
+
+When you are finished, save the file and close the designer. Now either re-deploy the plugin with `pb_tools` or copy the folder to the QGIS plugins folder. Now reload the plugin in QGIS. There are a couple of ways to do this
+
+- Close QGIS and reopen it; then reload the plugin
+- Install another(!) plugin called 'Plugin Reloaded'
+
+I'd recommend the latter if you are actively developing a plugin as it avoids shutting QGIS down each time you make a change. Once installed, open this plugin (Plugin Reloaded), click on [Configure] and choose the current plugin (random_number_generator) from the drop-down list. Once you've done this, you can then use the reload icon (a blue circle) to make the updates. 
+
+### Adding some functionality
+
+So we now have an updated dialog box and various tools to help loading and updating the plugin. However, it still doesn't do anything! So let's some Python code to actually generate a random number. Using a text editor open the file called *random_number_generator_dialog.py*. This contains the Python code to define the existing class for our plugin. Scroll down until you find the class definition (a line that starts `class RandomNumberGenerator`). Below this you'll see the default `__init__()` method used to initialize the plugin. Below this method, add a new method called `generateNewNumber`, which will use `randint` to generate a random integer:
+
+```
+def generateNewNumber(self): 
+    r = random.randint(0,100) 
+    self.label.setText("The number is: " + str(r))
+```
+
+Now add a line at the bottom of the `__init__()` method to call this when the button is clicked
+
+```
+    self.pushButton.clicked.connect(self.generateNewNumber)
+```
+
+Finally, at the start of the file, import the random module
+
+```
+import random
+```
+
+Save your file, and redeploy the plugin. Reload the plugin from QGIS, open and enjoy some random numbers:
+
+![Final plug-in](./images/rng_final.png)
+
+## Using QGIS functions in a plugin
+
+We'll now make a second plugin, but one that access some simple QGIS functions. The goal will be to make a plugin that writes the attribute table of a QGIS layer to a CSV file. We'll also create this as a new processing provider (similar to the GDAL and GRASS providers), rather than a standalone plugin. This allows you to ultimately add multiple tools to the same processing provider.
+
+### Plugin Builder
+
+As before, we'll start by creating a template through the plugin builder tool. Open this, and use the following values for the first page:
+
+- Class name: `SaveAttributes`
+- Plugin name: `Save Attributes (Processing)`
+- Description: `Writes the attribute table of a layer to a csv file`
+- Module name: `save_attributes_processing`
+- Version number: `0.1`
+- Minimum QGIS version: `3.0`
+- Author/Company & Email address: You can add anything here, even your real name
+
+On the next page, add a brief description, and continue. On the following page, choose `Processing Provider` from the Template drop-down menu. By creating a provider, rather than a simple plugin, it's possible to add mutliple tools to the same provider, and to access these through the PyQGIS API. This will give you a new set of options to fill out
+
+- Algorithm name: `Save Attributes as CSV`. This creates the specific algorithm with the processingprovider
+- Algorithm group: Leave blank - this allows you to create subgroups of algorithms, e.g. the Cartography group in the QGIS processing tools
+- Provider name: `Save Attributes`. This will be the high level provider name. Plugins for the same provider will be grouped togther. 
+- Provider description: `Writes the attribute table of a layer to a csv file`. 
+
+Note that this distinguishes between the algorithm and the provider. Hierarchically, you can have multiple algorithms associated with a single provider.
+
+Click [Next] when you are done. Leave the boxes on the next page checked. Don't enter any details on the Publication page (unless you want to link to a Github repository). Do check the `Flag plugin as experimental`. You'll see this later on while installing, and it's a useful flag for plugins in development. Finally, select the output folder (use the same base folder as you used for the previous plugin).
+
+### Compiling and deploying
+
+Open a terminal and navigate to the new plugin folder. Check the list of files - this should include
+
+```
+save_attributes_processing.py
+save_attributes_processing_algorithm.py
+save_attributes_processing_provider.py
+```
+
+If you have not installed `pb_tools`, then compile simply copy this folder to your QGIS plugins folder (see above). 
+
+If you are using `pbt_tools`, remember to edit the `plugin_path:` in the file *pb_tools.cfg*. Once you've done this, copy the files by running `pbt deploy`.
 
 
-To create a template for your plugin, you have to work through the dialog boxes of Plugin Builder and fill out the information there. Clicking the “Help” button will open a local .html page with detailed information on the purpose and meaning of the different fields. We fill out the first page as shown in the figure below. Here is a brief overview:
 
-Class name: this is the name of the main class for our plugin. It needs to be a valid Python class name.
-Plugin name: this is the name of the plugin in readable form. In contrast to the class name, it can contain spaces and other special characters.
-Description: a short description of what the plugin is for.
-Module name: the name of the .py file that will contain the main class for your plugin. Typically, the class name written with underscores rather than in CamelCase is used here.
-Version number & Minimum QGIS version: these are used to specify a version number for your plugin and the minimum QGIS version required to run it.
-Author/Company & Email address: here you provide information about the author of the plugin that will be used to create the copyright information at the beginning of the different files. We have no intentation of publishing this plugin, so we just use “489” here.
 
 
 [pibID]: https://g-sherman.github.io/Qgis-Plugin-Builder/
