@@ -220,7 +220,7 @@ On the next page, add a brief description, and continue. On the following page, 
 
 Note that this distinguishes between the algorithm and the provider. Hierarchically, you can have multiple algorithms associated with a single provider.
 
-Click [Next] when you are done. Leave the boxes on the next page checked. Don't enter any details on the Publication page (unless you want to link to a Github repository). Do check the `Flag plugin as experimental`. You'll see this later on while installing, and it's a useful flag for plugins taht are in development. Finally, select the output folder (use the same base folder as you used for the previous plugin).
+Click [Next] when you are done. Leave the boxes on the next page checked. Don't enter any details on the Publication page (unless you want to link to a Github repository). Do check the `Flag plugin as experimental`. You'll see this later on while installing, and it's a useful flag for plugins that are in development. Finally, select the output folder (use the same base folder as you used for the previous plugin). You may again get the message about missing resources or missing `pyrcc5`. You can ignore this. 
 
 ### Compiling and deploying
 
@@ -229,7 +229,6 @@ Open a terminal and navigate to the new plugin folder. Check the list of files -
 `save_attributes_processing.py`: this includes the general framework for a plugin
 `save_attributes_processing_algorithm.py`: this includes all code for the specific algorithm (writing to a csv file)
 `save_attributes_processing_provider.py`: this contains the code for the processing tool box (not the algorithms)
-
 
 If you have not installed `pb_tools`, then compile simply copy this folder to your QGIS plugins folder (see above). 
 
@@ -245,6 +244,107 @@ Once you've made these changes, you can run `pbt deploy` to copy the files to th
 Once the files are copied, close and reopen QGIS. Now open the Plugin Manager, and you should see your new processing toolbox under the 'Installed' tab
 
 ![Processing toolbox](./images/sa_plugin4.png)
+
+Check the box next to the plugin name, and open the processing toolbox ([Processing] > [Toolbox]), and you should see your toolbox in the list:
+
+![Processing toolbox](./images/sa_plugin5.png)
+
+If you click this, it would open a default, template dialog box. We'll now customize this and add some code to run the operation (save the layer). 
+
+### Setting up the interface
+
+Go to your development folder (where the files were created by Plugin Builder). Open the *save_attributes_processing_algorithm.py* file in a text editor. At the top of this file, you'll see various functions imported from the `qgis.core` library:
+
+![Processing toolbox](./images/sa_plugin6.png)
+
+1. Provides the main Processing class
+2. Provides functions for accessing features
+3. Provides the main class for an algorithm
+4. Provides functions to read feature attributes
+5. Provides functions to write feature attributes
+
+For our plugin, we want to write to a file rather than back to a layer, we'll need to change this last one to `QgsProcessingParameterFileDestination`.
+
+Now find the `initAlgorithm()` method, and use the following code to define the file destination method with the following code. This will define attributes of the 'Output' widgets on the dialog box, including the label and a wildcard for possible output files.
+
+```
+self.addParameter(
+  QgsProcessingParameterFileDestination(
+    self.OUTPUT,
+    self.tr('Output File'),
+    'CSV files (*.csv)',
+  )
+)
+```
+
+Before modifying this further, it might be worth checking to make sure your changes are working. Save the Python file and recopy, or re-deploy it to the Plugin folder. Now reload this in QGIS (remmeber to add the `Save attributes` plugin to the Reloader plugin), and reopen the dialog box:
+
+![Processing toolbox](./images/sa_plugin7.png)
+The dialog box now has two entries: the input layer and the output file. If you click on the [`...`], you can select to save to a file. 
+
+### Setting up the algorithm
+
+We'll now add code to write the attribute values. To do this, go back to the *save_attributes_processing_algorithm.py* file. Find the class definition (`class SaveAttributesAlgorithm`), and replace the existing `processAlgorithm` definition with the following code:
+
+```
+def processAlgorithm(self, parameters, context, feedback):
+  """
+  Here is where the processing itself takes place.
+  """
+  source = self.parameterAsSource(parameters, self.INPUT, context)
+  csv = self.parameterAsFileOutput(parameters, self.OUTPUT, context)
+
+  fieldnames = [field.name() for field in source.fields()]
+
+  # Compute the number of steps to display within the progress bar and
+  # get features from source
+  total = 100.0 / source.featureCount() if source.featureCount() else 0
+  features = source.getFeatures()
+
+  with open(csv, 'w') as output_file:
+    # write header
+    line = ','.join(name for name in fieldnames) + '\n'
+    output_file.write(line)
+    for current, f in enumerate(features):
+        # Stop the algorithm if cancel button has been clicked
+        if feedback.isCanceled():
+            break
+
+        # Add a feature in the sink
+        line = ','.join(str(f[name]) for name in fieldnames) + '\n'
+        output_file.write(line)
+
+        # Update the progress bar
+        feedback.setProgress(int(current * total))
+
+  output_file.close()
+  return {self.OUTPUT: csv}
+```
+
+This code does the following:
+
+- Links to the input layer as `source`
+- Links to the output csv file as `csv`
+- Get the set of attribute names (`fieldnames`)
+- Creates a progress bar from the number of features
+- Extracts the features (`features = source.getFeatures()`)
+- Next it opens the csv file and writes a header line (the attribute names separated by commas)
+- Loops over each feature
+    - Create a `line` containing the value of each attribute for that feature, separated by commas
+    - Writes the line to the file
+    - Updates the progress bar
+- Close the file
+
+There is also a check (`feedback.isCanceled()`) to see if the [Cancel] button has been clicked. If so, the algorithm halts. 
+
+SAve the file, copy or deploy it and reload the algorithm. In QGIS, load some layers for the algorithm to work with, then run the plugin. Select a layer and an output file, and [Run].
+
+### What to do if it goes wrong
+
+Creating these plugins requires juggling a lot of files, code and software tools, and it's pretty easy to make a mistake. This will often be flagged in QGIS when you try to load or run the plugin. Check the output logs and any error messages - it's usually possible to find code errors this way. If in doubt, go to the Plugin Manager and uninstall your plugin, then try to reinstall. It's also useful to keep a copy of your working code when making changes, or use versioning software like **git** to allow you to revert to an older working copy
+
+
+
 
 
 
